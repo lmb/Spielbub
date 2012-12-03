@@ -1,0 +1,71 @@
+package d;
+
+message Error {
+    enum Numbers {
+        UNKNOWN = 1;
+    }
+    
+    required int32 errno = 1;
+    optional string msg = 2;
+    
+    optional Type type = 100 [default = ERROR];
+}
+
+enum Type {
+    VERSION = 1;
+    MEMORY  = 2;
+    TILE    = 3;
+    ERROR   = 4;
+}
+
+message Request {
+    required Type type = 1;
+    
+    // Common fields get lower prio
+    optional Error error = 2;
+
+    // Messages
+    message Memory {
+        required int32 address = 1;
+        required int32 count = 2;
+        
+        optional Type type = 100 [default = MEMORY];
+    }
+    message Tile {
+        required int32 tile = 1;
+        
+        optional Type type = 100 [default = TILE];
+    }
+    
+    optional Memory memory = 7;
+    optional Tile tile = 8;
+}
+
+message Response {
+    required Type type = 1;
+    optional Error error = 2;
+    
+    message Version {
+        required int32 major = 1;
+        required int32 minor = 2;
+        
+        optional Type type = 100 [default = VERSION];
+    }
+    
+    optional Version version = 6;
+
+    // Messages
+    message Memory {
+        required bytes contents = 1;
+        
+        optional Type type = 100 [default = MEMORY];
+    }
+    message Tile {
+        required bytes contents = 1;
+        
+        optional Type type = 100 [default = TILE];
+    }
+    
+    optional Memory memory = 7;
+    optional Tile tile = 8;
+}
