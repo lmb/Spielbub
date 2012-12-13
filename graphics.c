@@ -24,7 +24,7 @@ typedef enum {
 /* BIG MESS, you have been warned */
 
 void _draw_line();
-void _put_pixel(const gfx_t *gfx, uint32_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
+void _put_pixel(uint32_t *screen_palette, uint32_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
 
 uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map);
 uint8_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
@@ -244,7 +244,7 @@ void graphics_update(context_t *ctx, int cycles)
 /*
  * Puts the pixel at position x in the line data(1,2) into buf.
  */
-void _put_pixel(const gfx_t *gfx, uint32_t* buf, uint8_t palette, int x, int data1, int data2)
+void _put_pixel(uint32_t* screen_palette, uint32_t* buf, uint8_t palette, int x, int data1, int data2)
 {
     // Pixel 0 is in Bit 7 -> 0x80 >> tile_x
     // Bit from data2 is bit 1 in color -> 6 - tile_x
@@ -254,7 +254,7 @@ void _put_pixel(const gfx_t *gfx, uint32_t* buf, uint8_t palette, int x, int dat
             ((data1 & (0x80 >> x)) >> (7 - x));
     index *= 2;
 
-    *buf = gfx->tile_palette[((palette & (0x3 << index)) >> index)];
+    *buf = screen_palette[((palette & (0x3 << index)) >> index)];
 }
 
 //void __draw_line(context_t *ctx)
@@ -363,6 +363,25 @@ void _put_pixel(const gfx_t *gfx, uint32_t* buf, uint8_t palette, int x, int dat
 //    graphics_unlock(ctx->gfx);
 //}
 
+void _put_tile(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette, uint8_t palette, int x, int y, int tile_x, int tile_y)
+{
+    int i;
+    int bpp = screen->format->BytesPerPixel;
+    uint32_t *pixels = (uint32_t*)screen->pixels + (y * screen->pitch) + (x * bpp);
+    
+    tile += tile_y * 2;
+    
+    for (i = tile_x; i < TILE_WIDTH; i++)
+    {
+        int color = (((*tile & (0x8000 >> (2*i))) >> (15 - i)) << 1) | ((*tile & (0x0080 >> i)) >> (7 - i));
+        color *= 2;
+        color = ((palette & (0x3 << color)) >> color);
+        
+        *pixels = screen_palette[color];
+        pixels += bpp;
+    }
+}
+
 void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
 {
     SDL_Surface *screen = ctx->gfx->screen;
@@ -390,7 +409,7 @@ void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, in
         tile += tile_y * 2;
         
         _put_pixel(
-           ctx->gfx,
+           ctx->gfx->tile_palette,
            (uint32_t*)(screen->pixels + screen_y * screen->pitch + screen_x * bpp),
            palette,
            tile_x,
@@ -402,11 +421,15 @@ void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, in
 
 void _draw_sprite(context_t *ctx, sprite_t sprite, int screen_y)
 {
+    SDL_Surface *screen = ctx->gfx->screen;
+    int bpp = screen->format->BytesPerPixel;
+    
     int y = screen_y - (sprite.b.y - SPRITE_HEIGHT);
     
     uint8_t palette = BIT_ISSET(sprite.b.flags, SPRITE_F_HIGH_PALETTE);
+    uint8_t *tile = _get_tile_data(ctx->mem, sprite.b.tile_id, TILE_DATA_LOW);
     
-    
+    tile += y * 2;
 }
 
 /*
