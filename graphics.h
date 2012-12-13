@@ -4,6 +4,7 @@
 #include <SDL/SDL_video.h>
 
 #include "context.h"
+#include "hardware.h"
 
 typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
@@ -24,12 +25,29 @@ struct gfx_opaque_t
     SDL_Surface* screen;
     
     // Precomputed colors.
-    uint8_t      colors[4];
+    uint32_t      tile_palette[4];
+    uint32_t      sprite_palette[4];
 };
+
+typedef union {
+    uint32_t raw;
+    
+    struct {
+        uint8_t y;
+        uint8_t x;
+        uint8_t tile_id;
+        uint8_t flags;
+    } b;
+} sprite_t;
+
+#define SPRITE_F_HIGH_PALETTE (4)
+#define SPRITE_F_X_FLIP (5)
+#define SPRITE_F_Y_FLIP (6)
+#define SPRITE_F_TRANSLUCENT (7)
 
 typedef struct {
     int length;
-    uint32_t data[10];
+    sprite_t data[SPRITES_PER_LINE];
 } sprite_table_t;
 
 bool graphics_init(gfx_t *gfx);
@@ -37,6 +55,6 @@ bool graphics_lock(gfx_t *gfx);
 void graphics_unlock(gfx_t *gfx);
 void graphics_update(context_t *ctx, int cycles);
 // TODO: Const this?
-void grapics_debug_tiles(context_t *context);
+//void grapics_debug_tiles(context_t *context);
 
 #endif//__GRAPHICS_H__

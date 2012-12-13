@@ -24,14 +24,13 @@ typedef enum {
 /* BIG MESS, you have been warned */
 
 void _draw_line();
-void _put_pixel(const gfx_t *gfx, uint8_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
-void _put_tile(const gfx_t *gfx, uint8_t* data, uint8_t palette, int x, int y);
+void _put_pixel(const gfx_t *gfx, uint32_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
 
 uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map);
 uint8_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
 
 // Sprite tables
-void _add_sprite_to_table(sprite_table_t *table, uint32_t sprite);
+void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite);
 
 /*
  * Sets a new LCD state and requests an
@@ -57,15 +56,20 @@ bool graphics_init(gfx_t* gfx)
     gfx->state = OAM;
     
     gfx->screen = SDL_SetVideoMode(
-        SCREEN_W, SCREEN_H, 8 /*BPP*/,
+        SCREEN_W, SCREEN_H, 32 /*BPP*/,
         SDL_SWSURFACE
     );
-
+    
     // White, Light Grey, Dark Grey, Black
-    gfx->colors[0] = (uint8_t)SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
-    gfx->colors[1] = (uint8_t)SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
-    gfx->colors[2] = (uint8_t)SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
-    gfx->colors[3] = (uint8_t)SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    gfx->tile_palette[0] = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
+    gfx->tile_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
+    gfx->tile_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
+    gfx->tile_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    
+    gfx->tile_palette[0] = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
+    gfx->tile_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
+    gfx->tile_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
+    gfx->tile_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
 
     return (gfx->screen != NULL);
 }
@@ -190,57 +194,57 @@ void graphics_update(context_t *ctx, int cycles)
  * Dumps all tiles in tile memory. Not really
  * useful right now, since the screen is too small.
  */
-void grapics_debug_tiles(context_t *ctx)
-{
-    int i;
-    uint8_t* data = mem_address(ctx->mem, 0x8000);
-    uint8_t palette = mem_read(ctx->mem, R_BGP);
+//void grapics_debug_tiles(context_t *ctx)
+//{
+//    int i;
+//    uint8_t* data = mem_address(ctx->mem, 0x8000);
+//    uint8_t palette = mem_read(ctx->mem, R_BGP);
+//
+//    SDL_Rect r;
+//    r.x = r.y = 0;
+//    r.w = r.h = 256;
+//    SDL_FillRect(ctx->gfx->screen, &r, SDL_MapRGB(ctx->gfx->screen->format, 255, 0, 255));
+//
+//    for (i = 0; i < 384; i++)
+//    {
+//        _put_tile(ctx->gfx, data + (i * 16), palette, (i % 16) * 8, (i / 16) * 8);
+//    }
+//
+//    SDL_Flip(ctx->gfx->screen);
+//}
 
-    SDL_Rect r;
-    r.x = r.y = 0;
-    r.w = r.h = 256;
-    SDL_FillRect(ctx->gfx->screen, &r, SDL_MapRGB(ctx->gfx->screen->format, 255, 0, 255));
-
-    for (i = 0; i < 384; i++)
-    {
-        _put_tile(ctx->gfx, data + (i * 16), palette, (i % 16) * 8, (i / 16) * 8);
-    }
-
-    SDL_Flip(ctx->gfx->screen);
-}
-
-void _put_tile(const gfx_t *gfx, uint8_t* data, uint8_t palette, int x, int y)
-{
-    // Tiles are 8x8 pixels. Each line occupies 2 bytes.
-    // The two bytes are combined bit by bit, which gives
-    // the palette index, which is in turn mapped to a color.
-
-    int line;
-    SDL_Surface *sfc = gfx->screen;
-
-    // Write whole lines at once for speed.
-    for (line = 0; line < 8; line++)
-    {
-        int t = y + line;
-        uint8_t* dst = (uint8_t*)sfc->pixels + (y + line) * sfc->pitch + x;
-        int data1 = *(data + line * 2);
-        int data2 = *(data + line * 2 + 1);
-        // TODO: Can this be transformed into some kind of memcpy?
-        _put_pixel(gfx, dst, palette, 0, data1, data2);
-        _put_pixel(gfx, dst + 1, palette, 1, data1, data2);
-        _put_pixel(gfx, dst + 2, palette, 2, data1, data2);
-        _put_pixel(gfx, dst + 3, palette, 3, data1, data2);
-        _put_pixel(gfx, dst + 4, palette, 4, data1, data2);
-        _put_pixel(gfx, dst + 5, palette, 5, data1, data2);
-        _put_pixel(gfx, dst + 6, palette, 6, data1, data2);
-        _put_pixel(gfx, dst + 7, palette, 7, data1, data2);
-    }
-}
+//void _put_tile(const gfx_t *gfx, uint8_t* data, uint8_t palette, int x, int y)
+//{
+//    // Tiles are 8x8 pixels. Each line occupies 2 bytes.
+//    // The two bytes are combined bit by bit, which gives
+//    // the palette index, which is in turn mapped to a color.
+//
+//    int line;
+//    SDL_Surface *sfc = gfx->screen;
+//
+//    // Write whole lines at once for speed.
+//    for (line = 0; line < 8; line++)
+//    {
+//        int t = y + line;
+//        uint8_t* dst = (uint8_t*)sfc->pixels + (y + line) * sfc->pitch + x;
+//        int data1 = *(data + line * 2);
+//        int data2 = *(data + line * 2 + 1);
+//        // TODO: Can this be transformed into some kind of memcpy?
+//        _put_pixel(gfx, dst, palette, 0, data1, data2);
+//        _put_pixel(gfx, dst + 1, palette, 1, data1, data2);
+//        _put_pixel(gfx, dst + 2, palette, 2, data1, data2);
+//        _put_pixel(gfx, dst + 3, palette, 3, data1, data2);
+//        _put_pixel(gfx, dst + 4, palette, 4, data1, data2);
+//        _put_pixel(gfx, dst + 5, palette, 5, data1, data2);
+//        _put_pixel(gfx, dst + 6, palette, 6, data1, data2);
+//        _put_pixel(gfx, dst + 7, palette, 7, data1, data2);
+//    }
+//}
 
 /*
  * Puts the pixel at position x in the line data(1,2) into buf.
  */
-void _put_pixel(const gfx_t *gfx, uint8_t* buf, uint8_t palette, int x, int data1, int data2) 
+void _put_pixel(const gfx_t *gfx, uint32_t* buf, uint8_t palette, int x, int data1, int data2)
 {
     // Pixel 0 is in Bit 7 -> 0x80 >> tile_x
     // Bit from data2 is bit 1 in color -> 6 - tile_x
@@ -250,13 +254,9 @@ void _put_pixel(const gfx_t *gfx, uint8_t* buf, uint8_t palette, int x, int data
             ((data1 & (0x80 >> x)) >> (7 - x));
     index *= 2;
 
-    *buf = gfx->colors[((palette & (0x3 << index)) >> index)];
+    *buf = gfx->tile_palette[((palette & (0x3 << index)) >> index)];
 }
 
-/*
- * Draw a single line, as indicated in R_LY.
- * Occurs right before a HBLANK.
- */
 //void __draw_line(context_t *ctx)
 //{
 //    SDL_Surface* screen = ctx->gfx->screen;
@@ -363,49 +363,27 @@ void _put_pixel(const gfx_t *gfx, uint8_t* buf, uint8_t palette, int x, int data
 //    graphics_unlock(ctx->gfx);
 //}
 
-void _draw_line(context_t *ctx) {
+void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
+{
     SDL_Surface *screen = ctx->gfx->screen;
+    int bpp = screen->format->BytesPerPixel;
     
-    // Scroll background by x / y
-    uint8_t r_scx  = mem_read(ctx->mem, R_SCX);
-    uint8_t r_scy  = mem_read(ctx->mem, R_SCY);
-    
-    // LCD control
-    uint8_t r_lcdc = mem_read(ctx->mem, R_LCDC);
-    
-    uint8_t palette = mem_read(ctx->mem, R_BGP);
-    
-    uint8_t* screen_y = mem_address(ctx->mem, R_LY);
-    
-    tile_data_t tile_data = BIT_ISSET(r_lcdc, R_LCDC_TILE_DATA) ? TILE_DATA_LOW : TILE_DATA_HIGH;
-    
-    // ----- BACKGROUND ------
     // Only a 160x144 "cutout" of the background is shown on the screen.
     // If the y-offset r_scy pushes this cutout off the screen it wraps
     // around.
-    int bg_y = (*screen_y + r_scy) % MAP_H;
+    int bg_y = (screen_y + offset_y) % MAP_H;
     
     // Since bg_y doesn't necessarily start at a tile boundary, we have
     // to calculate at which y coordinate we are within a tile.
     int tile_y = bg_y % 8;
     
-    tile_map_t bg_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_BG_TILE_MAP) ?
-        TILE_MAP_LOW : TILE_MAP_HIGH;
-    
-    if (!graphics_lock(ctx->gfx))
-    {
-        printf("_draw_line(): could not lock SDL surface\n");
-        return;
-    }
-    
-    int screen_x;
-    for (screen_x = 0; screen_x < 160; screen_x++)
+    for (; screen_x < 160; screen_x++)
     {
         // These calculations are analogous to bg_y et al above.
-        int bg_x   = (screen_x + r_scx) % MAP_W;
+        int bg_x   = (screen_x + offset_x) % MAP_W;
         int tile_x = bg_x % 8;
         
-        uint8_t tile_id = _get_tile_id(ctx->mem, bg_x, bg_y, bg_tile_map);
+        uint8_t tile_id = _get_tile_id(ctx->mem, bg_x, bg_y, tile_map);
         uint8_t *tile = _get_tile_data(ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
@@ -413,25 +391,127 @@ void _draw_line(context_t *ctx) {
         
         _put_pixel(
            ctx->gfx,
-           (uint8_t*)screen->pixels + (*screen_y) * screen->pitch + screen_x,
+           (uint32_t*)(screen->pixels + screen_y * screen->pitch + screen_x * bpp),
            palette,
            tile_x,
            *tile,
            *(tile + 1)
         );
     }
+}
+
+void _draw_sprite(context_t *ctx, sprite_t sprite, int screen_y)
+{
+    int y = screen_y - (sprite.b.y - SPRITE_HEIGHT);
     
+    uint8_t palette = BIT_ISSET(sprite.b.flags, SPRITE_F_HIGH_PALETTE);
+    
+    
+}
+
+/*
+ * Draw a single line, as indicated in R_LY.
+ * Occurs right before a HBLANK.
+ */
+void _draw_line(context_t *ctx) {
+    // LCD control
+    uint8_t r_lcdc = mem_read(ctx->mem, R_LCDC);
+    uint8_t palette = mem_read(ctx->mem, R_BGP);
+    
+    uint8_t screen_y = mem_read(ctx->mem, R_LY);
+    
+    tile_data_t tile_data = BIT_ISSET(r_lcdc, R_LCDC_TILE_DATA) ? TILE_DATA_LOW : TILE_DATA_HIGH;
+    
+    if (!graphics_lock(ctx->gfx))
+    {
+        printf("_draw_line(): could not lock SDL surface\n");
+        return;
+    }
+    
+    if (BIT_ISSET(r_lcdc, R_LCDC_BG_AND_WIN_ENABLED))
+    {
+        // Background
+        uint8_t r_scx  = mem_read(ctx->mem, R_SCX);
+        uint8_t r_scy  = mem_read(ctx->mem, R_SCY);
+        
+        tile_map_t bg_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_BG_TILE_MAP) ?
+            TILE_MAP_LOW : TILE_MAP_HIGH;
+        
+        _draw_bg(
+            ctx,
+            0, screen_y,
+            r_scx, r_scy,
+            palette, bg_tile_map, tile_data
+        );
+        
+        // Window
+        uint8_t r_wy = mem_read(ctx->mem, R_WY);
+        
+        if (BIT_ISSET(r_lcdc, R_LCDC_WINDOW_ENABLED) && r_wy >= screen_y)
+        {
+            // TODO: Remove this as soon as this codepath is tested
+            printf("window\n");
+            
+            tile_map_t window_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_WINDOW_TILE_MAP) ?
+            TILE_MAP_LOW : TILE_MAP_HIGH;
+            
+            uint8_t r_wx = mem_read(ctx->mem, R_WX) - 7;
+            
+            _draw_bg(
+                ctx,
+                r_wx, screen_y,
+                0, ctx->gfx->window_y,
+                palette, window_tile_map, tile_data
+            );
+            
+            ctx->gfx->window_y += 1;
+        }
+    }
+    
+    if (BIT_ISSET(r_lcdc, R_LCDC_SPRITES_ENABLED))
+    {
+        int sprite_size = BIT_ISSET(r_lcdc, R_LCDC_SPRITES_LARGE) ? 32 : 16;
+        
+        int i;
+        sprite_table_t sprites;
+        sprite_t *oam = (sprite_t*)mem_address(ctx->mem, OAM_START);
+        
+        for (i = 0; i < OAM_ENTRIES; i++)
+        {
+            // byte 0: y coord
+            // byte 1: x coord
+            // byte 2: tile id
+            // byte 3: flags
+            sprite_t sprite = *(oam + OAM_ENTRY_SIZE * i);
+            
+            // OAM entries specify the y coordinate of the sprites'
+            // lower border (?)
+            if (sprite.b.y - 16 < screen_y && screen_y <= sprite.b.y)
+            {
+                _add_sprite_to_table(&sprites, sprite);
+            }
+        }
+        
+        // <sprites> holds the 10 sprites with highest priority,
+        // sorted by ascending x coordinate. Since sprites
+        // with lower x coords write over tiles with higher x coords
+        // we draw in reverse order.
+        for (i = SPRITES_PER_LINE - 1; i >= 0; i--)
+        {
+            
+        }
+    }
+        
     graphics_unlock(ctx->gfx);
     
-    (*screen_y)++;
+    mem_write(ctx->mem, R_LY, screen_y + 1);
 }
 
 #define TABLE_SPRITE_X(i) (table->data[i] & 0x00FF0000)
 
-void _add_sprite_to_table(sprite_table_t *table, uint32_t sprite)
+void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite)
 {
     int i;
-    uint32_t sprite_x;
     
     assert(table != NULL);
     
@@ -443,16 +523,16 @@ void _add_sprite_to_table(sprite_table_t *table, uint32_t sprite)
         return;
     }
     
-    sprite_x = (sprite & 0x00FF0000);
-    
     // Bail out if last (tenth) element is lower than element to be inserted
-    if (table->length == 10 && TABLE_SPRITE_X(9) < sprite_x)
+    if (table->length == SPRITES_PER_LINE &&
+        table->data[SPRITES_PER_LINE - 1].b.x < sprite.b.x)
     {
         return;
     }
     
-    i = (table->length > 9) ? 9 : table->length;
-    while (i > 0 && TABLE_SPRITE_X(i - 1) > sprite_x)
+    i = (table->length > SPRITES_PER_LINE - 1 ) ?
+        SPRITES_PER_LINE - 1 : table->length;
+    while (i > 0 && table->data[i - 1].b.x > sprite.b.x)
     {
         table->data[i] = table->data[i - 1];
         i--;

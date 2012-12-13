@@ -2,6 +2,8 @@
 #define __IOREGS_H__
 
 #define OAM_START (0xFE00)
+#define OAM_ENTRIES (40)
+#define OAM_ENTRY_SIZE (4)
 
 #define R_JOYPAD (0xFF00)
 #define R_JOYPAD_CONTROL (5)
@@ -24,6 +26,9 @@
 #define R_LCDC_WINDOW_ENABLED (5)
 #define R_LCDC_BG_TILE_MAP (3)
 #define R_LCDC_TILE_DATA (4)
+#define R_LCDC_SPRITES_LARGE (2)
+#define R_LCDC_SPRITES_ENABLED (1)
+#define R_LCDC_BG_AND_WIN_ENABLED (0)
 
 #define R_STAT (0xFF41)
 #define R_STAT_LYC_ENABLE (6)
@@ -38,6 +43,8 @@
 #define R_DMA  (0xFF46)
 
 #define R_BGP (0xFF47)
+#define R_SPP_LOW (0xFF48)
+#define R_SPP_HIGH (0xFF49)
 
 #define R_WY (0xFF4A)
 #define R_WX (0xFF4B)
