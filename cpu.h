@@ -39,7 +39,7 @@ struct cpu_opaque_t {
 };
 
 void cpu_init(cpu_t *cpu);
-inline int cpu_run(context_t *context);
+int cpu_run(context_t *context);
 
 void cpu_irq(context_t*, interrupt_t i);
 void cpu_interrupts(context_t *ctx);

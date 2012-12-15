@@ -108,22 +108,22 @@ bool mem_load_rom(memory_t *mem, char *filename)
     return true;
 }
 
-inline uint8_t* mem_address(memory_t *mem, register int addr)
+uint8_t mem_read(const memory_t* mem, register int addr)
 {
 	ADDR_TO_BANK_OFFSET(addr);
-
-    // TODO: Check for null bank pointers
     
-	return mem->map[bank] + offset;
-}
-
-inline uint8_t mem_read(const memory_t *mem, register int addr)
-{
-	ADDR_TO_BANK_OFFSET(addr);
-
     // TODO: Check for null bank pointers
     
 	return mem->map[bank][offset];
+}
+
+uint8_t* mem_address(const memory_t* mem , int addr)
+{
+	ADDR_TO_BANK_OFFSET(addr);
+    
+    // TODO: Check for null bank pointers
+    
+	return mem->map[bank] + offset;
 }
 
 void mem_write(memory_t *mem, int addr, uint8_t value)

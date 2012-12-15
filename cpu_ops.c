@@ -5,20 +5,20 @@
 
 // __ Stack ________________________________________
 
-inline void _push(context_t *ctx, reg_t* reg)
+void _push(context_t *ctx, reg_t* reg)
 {
     mem_write(ctx->mem, _SP--, reg->B.h);
     mem_write(ctx->mem, _SP--, reg->B.l);
 }
 
-inline void _pop(context_t *ctx, reg_t* reg)
+void _pop(context_t *ctx, reg_t* reg)
 {
     reg->B.l = mem_read(ctx->mem, ++_SP);
     reg->B.h = mem_read(ctx->mem, ++_SP);
 }
 
 // ___ ALU __________________________________________
-inline void _add(context_t *ctx, uint8_t n, bool add_carry)
+void _add(context_t *ctx, uint8_t n, bool add_carry)
 {
     n += add_carry ? GET_C() : 0;
     register unsigned int value = _A + n;
@@ -32,7 +32,7 @@ inline void _add(context_t *ctx, uint8_t n, bool add_carry)
     _A = (uint8_t)value;
 }
 
-inline void _add_16(context_t *ctx, uint16_t n)
+void _add_16(context_t *ctx, uint16_t n)
 {
     unsigned int value = _HL + n;
 
@@ -43,7 +43,7 @@ inline void _add_16(context_t *ctx, uint16_t n)
     _HL = (uint16_t)value;
 }
 
-inline void _sub(context_t *ctx, uint8_t n, bool add_carry)
+void _sub(context_t *ctx, uint8_t n, bool add_carry)
 {
     n += add_carry ? GET_C() : 0;
     register unsigned int value = _A - n;
@@ -57,7 +57,7 @@ inline void _sub(context_t *ctx, uint8_t n, bool add_carry)
     SET_Z(_A);
 }
 
-inline void _inc(context_t *ctx, uint8_t* r)
+void _inc(context_t *ctx, uint8_t* r)
 {
     SET_H((*r & 0xF) + 1 > 0xF);
     SET_N(0);
@@ -66,7 +66,7 @@ inline void _inc(context_t *ctx, uint8_t* r)
     SET_Z(*r);
 }
 
-inline void _dec(context_t *ctx, uint8_t* r)
+void _dec(context_t *ctx, uint8_t* r)
 {
     SET_N(1);
     SET_H((*r & 0xF) >= 1);
@@ -75,7 +75,7 @@ inline void _dec(context_t *ctx, uint8_t* r)
     SET_Z(*r);
 }
 
-inline void _and(context_t *ctx, uint8_t n)
+void _and(context_t *ctx, uint8_t n)
 {
     _A &= n;
 
@@ -85,7 +85,7 @@ inline void _and(context_t *ctx, uint8_t n)
     SET_H(1);
 }
 
-inline void _or(context_t *ctx, uint8_t n)
+void _or(context_t *ctx, uint8_t n)
 {
     _A |= n;
 
@@ -95,7 +95,7 @@ inline void _or(context_t *ctx, uint8_t n)
     SET_H(0);
 }
 
-inline void _xor(context_t *ctx, uint8_t n)
+void _xor(context_t *ctx, uint8_t n)
 {
     _A ^= n;
 
@@ -105,7 +105,7 @@ inline void _xor(context_t *ctx, uint8_t n)
     SET_H(0);
 }
 
-inline void _cp(context_t *ctx, uint8_t n)
+void _cp(context_t *ctx, uint8_t n)
 {
     int value = _A - n;
 
@@ -115,7 +115,7 @@ inline void _cp(context_t *ctx, uint8_t n)
     SET_H(0);
 }
 
-inline void _swap(context_t *ctx, uint8_t* r)
+void _swap(context_t *ctx, uint8_t* r)
 {
     *r = ((*r & 0xF) << 4) | ((*r & 0xF0) >> 4);
 
@@ -125,7 +125,7 @@ inline void _swap(context_t *ctx, uint8_t* r)
     SET_H(0);
 }
 
-inline void _rotate_l(context_t *ctx, uint8_t* r, bool through_carry)
+void _rotate_l(context_t *ctx, uint8_t* r, bool through_carry)
 {
     int carry = through_carry ? GET_C() : 0;
 
@@ -138,7 +138,7 @@ inline void _rotate_l(context_t *ctx, uint8_t* r, bool through_carry)
     SET_Z(*r);
 }
 
-inline void _rotate_r(context_t *ctx, uint8_t* r, bool through_carry)
+void _rotate_r(context_t *ctx, uint8_t* r, bool through_carry)
 {
     int carry = through_carry ? GET_C() << 7 : 0;
 
@@ -151,7 +151,7 @@ inline void _rotate_r(context_t *ctx, uint8_t* r, bool through_carry)
     SET_Z(*r);
 }
 
-inline void _shift_l(context_t *ctx, uint8_t* r)
+void _shift_l(context_t *ctx, uint8_t* r)
 {
     SET_C(*r & 0x80);
     SET_N(0);
@@ -160,7 +160,7 @@ inline void _shift_l(context_t *ctx, uint8_t* r)
     SET_Z(*r);
 }
 
-inline void _shift_r(context_t *ctx, uint8_t* r)
+void _shift_r(context_t *ctx, uint8_t* r)
 {
     uint8_t b7;
 
@@ -175,7 +175,7 @@ inline void _shift_r(context_t *ctx, uint8_t* r)
     SET_Z(*r);
 }
 
-inline void _shift_r_logic(context_t *ctx, uint8_t* r)
+void _shift_r_logic(context_t *ctx, uint8_t* r)
 {
     SET_C(*r & 0x01);
     SET_N(0);
@@ -186,26 +186,26 @@ inline void _shift_r_logic(context_t *ctx, uint8_t* r)
 
 // __ Flow control ______________________________
 
-inline void _jump(context_t *ctx)
+void _jump(context_t *ctx)
 {
     _M = mem_read(ctx->mem, _PC++); _T = mem_read(ctx->mem, _PC++);
     _PC = _TMP;
 }
 
-inline void _call(context_t *ctx)
+void _call(context_t *ctx)
 {
     _M = mem_read(ctx->mem, _PC++); _T = mem_read(ctx->mem, _PC++);
     _push(ctx, &(ctx->cpu->PC));
     _PC = _TMP;
 }
 
-inline void _restart(context_t *ctx, uint8_t n)
+void _restart(context_t *ctx, uint8_t n)
 {
     _push(ctx, &(ctx->cpu->PC));
     _PC = n;
 }
 
-inline void _return(context_t *ctx)
+void _return(context_t *ctx)
 {
     _pop(ctx, &(ctx->cpu->PC));
 }

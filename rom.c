@@ -16,7 +16,7 @@
 uint8_t* rom_load(rom_meta* meta, char* filename)
 {
 	FILE* rom = fopen(filename, "rb");
-	int req_mem;
+	unsigned int req_mem;
 	uint8_t *buffer;
 
 	if (!rom)

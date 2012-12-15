@@ -32,9 +32,8 @@ void mem_init(memory_t*);
 void mem_destroy(memory_t*);
 
 bool mem_load_rom(memory_t*, char *filename);
-
-inline uint8_t mem_read(const memory_t*, register int addr);
-inline uint8_t* mem_address(memory_t*, int addr);
+uint8_t mem_read(const memory_t* mem, register int addr);
+uint8_t* mem_address(const memory_t* mem , int addr);
 void mem_write(memory_t*, int addr, uint8_t value);
 void mem_write_ioregs(memory_t*, const uint8_t* data);
 

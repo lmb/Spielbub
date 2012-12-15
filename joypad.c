@@ -18,7 +18,14 @@ SDLKey const keys[] = {
     JOY_RIGHT, JOY_LEFT, JOY_UP, JOY_DOWN
 };
 
-inline void _state_to_ioreg(context_t *ctx, uint8_t state, uint8_t *reg);
+static inline void _state_to_ioreg(context_t *ctx, uint8_t state, uint8_t *reg)
+{
+    if (state < (*reg & 0xF)) {
+        cpu_irq(ctx, I_JOYPAD);
+    }
+    
+    *reg = (*reg & 0xF0) | (state & 0xF);
+}
 
 void joypad_init(context_t *ctx)
 {
@@ -74,15 +81,6 @@ void joypad_update_state(context_t *ctx, const SDL_KeyboardEvent *evt)
             break;
         }
     }
-}
-
-inline void _state_to_ioreg(context_t *ctx, uint8_t state, uint8_t *reg)
-{
-    if (state < (*reg & 0xF)) {
-        cpu_irq(ctx, I_JOYPAD);
-    }
-    
-    *reg = (*reg & 0xF0) | (state & 0xF);
 }
 
 /*

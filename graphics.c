@@ -485,5 +485,5 @@ uint16_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_
             break;
     }
     
-    return mem_address(mem, (int)tile_data + (tile_addr * 16));
+    return (uint16_t*)mem_address(mem, (int)tile_data + (tile_addr * 16));
 }

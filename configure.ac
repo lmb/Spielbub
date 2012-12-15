@@ -14,7 +14,7 @@ m4_ifdef(
 PKG_CHECK_MODULES([SDL], [sdl])
 PKG_CHECK_MODULES([ZeroMQ], [libzmq])
 PKG_CHECK_MODULES([protobufc], [libprotobuf-c])
-CFLAGS="$CFLAGS -O0 -Wall -Wextra -fno-inline"
+CFLAGS="$CFLAGS -std=gnu99 -O0 -Wall -Wextra -fno-inline"
 
 AC_CHECK_HEADERS([SDL/SDL.h])
 AC_CHECK_HEADERS([zmq.h])

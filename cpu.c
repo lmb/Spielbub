@@ -92,7 +92,7 @@ void cpu_interrupts(context_t *ctx)
 /*
  * Executes one opcode at the current program counter.
  */
-inline int cpu_run(context_t *ctx)
+int cpu_run(context_t *ctx)
 {
     register unsigned int value = 0;
     register unsigned int opcode;
@@ -699,7 +699,7 @@ inline int cpu_run(context_t *ctx)
                     }
                 } else {
                     // Last operation was an addition
-                    if (t & 0xF > 0x9 || GET_H()) {
+                    if ((t & 0xF) > 0x9 || GET_H()) {
                         t += 0x6;
                     }
                     
