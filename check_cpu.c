@@ -14,6 +14,7 @@
 #include "cpu.h"
 #include "cpu_ops.h"
 #include "graphics.h"
+#include "hardware.h"
 
 #define CONTEXT context_t context; context_t *ctx = &context; \
     context_create(ctx);
@@ -108,26 +109,66 @@ START_TEST (test_cpu_sub)
 }
 END_TEST
 
-extern void _add_sprite_to_table(sprite_table_t *table, uint32_t sprite);
-
 // Graphics
+START_TEST (test_gfx_sprite_t)
+{
+    sprite_t sprite = { .raw = 0};
+    
+    // These tests currently fail on big-endian.
+    
+    fail_unless(sizeof(sprite_t) == 4, "The compiler seems to pad sprite_t to != 4 bytes");
+    
+    sprite.y = 0xFF;
+    sprite.x = 0xEE;
+    sprite.tile_id = 0xDD;
+    sprite.flags = 0xCC;
+    
+    const uint8_t check[] = { 0xFF, 0xEE, 0xDD, 0xCC };
+    
+    fail_unless(memcmp((void*)&sprite, (void*)check, 4) == 0, "sprite_t packing does not seem to work");
+}
+END_TEST
+
+
+extern void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite);
 START_TEST (test_gfx_sprite_table)
 {
     sprite_table_t table;
     table.length = 0;
     memset(&(table.data), 0, sizeof(table.data));
     
-    const uint32_t to_sort[] = {
-        0x000A000A, 0x00090009, 0x00080008, 0x00070007, 0x00060006, 0x00050005, 0x00050004, 0x00040003, 0x00030002, 0x00020001, 0x00FF000B, 0x0008000C, 0
+    sprite_t const to_sort[] = {
+        { .b = { .x = 0xA, .flags = 0xA}},
+        { .b = { .x = 0x9, .flags = 0x9}},
+        { .b = { .x = 0x8, .flags = 0x8}},
+        { .b = { .x = 0x7, .flags = 0x7}},
+        { .b = { .x = 0x6, .flags = 0x6}},
+        { .b = { .x = 0x5, .flags = 0x5}},
+        { .b = { .x = 0x5, .flags = 0x4}},
+        { .b = { .x = 0x4, .flags = 0x3}},
+        { .b = { .x = 0x3, .flags = 0x2}},
+        { .b = { .x = 0x2, .flags = 0x1}},
+        { .b = { .x = 0xF, .flags = 0xB}},
+        { .b = { .x = 0x8, .flags = 0xC}},
+        { .raw = 0 }
     };
     
     int i;
-    for (i = 0; to_sort[i] != 0; i++) {
+    for (i = 0; to_sort[i].raw != 0; i++) {
         _add_sprite_to_table(&table, to_sort[i]);
     }
     
-    const uint32_t sorted[10] = {
-        0x00020001, 0x00030002, 0x00040003, 0x00050005, 0x00050004, 0x00060006,0x00070007, 0x00080008, 0x0008000C, 0x00090009
+    const uint8_t sorted[SPRITES_PER_LINE][4] = {
+        {0x00, 0x02, 0x00, 0x01},
+        {0x00, 0x03, 0x00, 0x02},
+        {0x00, 0x04, 0x00, 0x03},
+        {0x00, 0x05, 0x00, 0x05},
+        {0x00, 0x05, 0x00, 0x04},
+        {0x00, 0x06, 0x00, 0x06},
+        {0x00, 0x07, 0x00, 0x07},
+        {0x00, 0x08, 0x00, 0x08},
+        {0x00, 0x08, 0x00, 0x0C},
+        {0x00, 0x09, 0x00, 0x09},
     };
     
     fail_unless(sizeof(table.data) == sizeof(sorted), "sprite_table_t is not of size %d but %d", sizeof(sorted), sizeof(table.data));
@@ -156,6 +197,7 @@ Suite * spielbub_suite(void)
     
     // Graphics
     TCase *tc_graphics = tcase_create("Graphics");
+    tcase_add_test(tc_graphics, test_gfx_sprite_t);
     tcase_add_test(tc_graphics, test_gfx_sprite_table);
     
     suite_add_tcase(s, tc_graphics);

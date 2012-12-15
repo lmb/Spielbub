@@ -272,9 +272,6 @@ int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette
 
 void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
 {
-    SDL_Surface *screen = ctx->gfx->screen;
-    int bpp = screen->format->BytesPerPixel;
-    
     // Only a 160x144 "cutout" of the background is shown on the screen.
     // If the y-offset r_scy pushes this cutout off the screen it wraps
     // around.
@@ -300,15 +297,21 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
 
 void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
 {
-    SDL_Surface *screen = ctx->gfx->screen;
-    int bpp = screen->format->BytesPerPixel;
+    int sprite_y = screen_y - (sprite.y - SPRITE_HEIGHT);
+    int screen_x = sprite.x - SPRITE_WIDTH;
     
-    int y = screen_y - (sprite.b.y - SPRITE_HEIGHT);
+    if (screen_x >= 160) {
+        // Off-screen sprites are simply ignored.
+        return;
+    }
     
-    uint8_t palette = BIT_ISSET(sprite.b.flags, SPRITE_F_HIGH_PALETTE);
-    uint8_t *tile = _get_tile_data(ctx->mem, sprite.b.tile_id, TILE_DATA_LOW);
+    uint8_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
+    palette = mem_read(ctx->mem, palette);
     
-    tile += y * 2;
+    uint16_t *tile = _get_tile_data(ctx->mem, sprite.tile_id, TILE_DATA_LOW);
+    
+    _put_tile_line(ctx->gfx->screen, tile, ctx->gfx->sprite_palette, palette,
+        screen_x, screen_y, 0, sprite_y);
 }
 
 /*
@@ -372,23 +375,21 @@ void _draw_line(context_t *ctx) {
     
     if (BIT_ISSET(r_lcdc, R_LCDC_SPRITES_ENABLED))
     {
-        int sprite_size = BIT_ISSET(r_lcdc, R_LCDC_SPRITES_LARGE) ? 32 : 16;
+        int sprite_height = BIT_ISSET(r_lcdc, R_LCDC_SPRITES_LARGE) ? 16 : 8;
         
         int i;
-        sprite_table_t sprites;
+        sprite_table_t sprites = { .length = 0 };
         sprite_t *oam = (sprite_t*)mem_address(ctx->mem, OAM_START);
         
         for (i = 0; i < OAM_ENTRIES; i++)
         {
-            // byte 0: y coord
-            // byte 1: x coord
-            // byte 2: tile id
-            // byte 3: flags
-            sprite_t sprite = *(oam + OAM_ENTRY_SIZE * i);
+            sprite_t sprite = *(oam + i);
+            
+            int real_sprite_y = sprite.y - 16;
             
             // OAM entries specify the y coordinate of the sprites'
             // lower border (?)
-            if (sprite.b.y - 16 < screen_y && screen_y <= sprite.b.y)
+            if (screen_y >= real_sprite_y && screen_y <= real_sprite_y + sprite_height)
             {
                 _add_sprite_to_table(&sprites, sprite);
             }
@@ -398,9 +399,10 @@ void _draw_line(context_t *ctx) {
         // sorted by ascending x coordinate. Since sprites
         // with lower x coords write over tiles with higher x coords
         // we draw in reverse order.
-        for (i = SPRITES_PER_LINE - 1; i >= 0; i--)
+        for (i = sprites.length - 1; i >= 0; i--)
         {
-            
+            // TODO: Ignore LSB for 8x16 sprites
+            _draw_sprite_line(ctx, sprites.data[i], screen_y);
         }
     }
         
@@ -408,8 +410,6 @@ void _draw_line(context_t *ctx) {
     
     mem_write(ctx->mem, R_LY, screen_y + 1);
 }
-
-#define TABLE_SPRITE_X(i) (table->data[i] & 0x00FF0000)
 
 void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite)
 {
@@ -427,14 +427,14 @@ void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite)
     
     // Bail out if last (tenth) element is lower than element to be inserted
     if (table->length == SPRITES_PER_LINE &&
-        table->data[SPRITES_PER_LINE - 1].b.x < sprite.b.x)
+        table->data[SPRITES_PER_LINE - 1].x < sprite.x)
     {
         return;
     }
     
     i = (table->length > SPRITES_PER_LINE - 1 ) ?
         SPRITES_PER_LINE - 1 : table->length;
-    while (i > 0 && table->data[i - 1].b.x > sprite.b.x)
+    while (i > 0 && table->data[i - 1].x > sprite.x)
     {
         table->data[i] = table->data[i - 1];
         i--;
@@ -443,8 +443,6 @@ void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite)
     table->data[i] = sprite;
     table->length += 1;
 }
-
-#undef TABLE_SPRITE_X
 
 uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map)
 {

@@ -22,21 +22,29 @@ struct gfx_opaque_t
     // Current state.
     gfx_state_t  state;
     
-    SDL_Surface* screen;
+    SDL_Surface *screen;
     
     // Precomputed colors.
     uint32_t      tile_palette[4];
     uint32_t      sprite_palette[4];
 };
 
+// This is completely unportable.
 typedef union {
     uint32_t raw;
     
     struct {
+        // X & Y Pos of the bottom right corner, for an 8x16 sprite
         uint8_t y;
         uint8_t x;
         uint8_t tile_id;
         uint8_t flags;
+    };
+    
+    // Clang doesn't support unnamed structs
+    // in designazed initializers.
+    struct {
+        uint8_t y, x, tile_id, flags;
     } b;
 } sprite_t;
 
