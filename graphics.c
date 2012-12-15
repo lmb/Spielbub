@@ -27,7 +27,7 @@ void _draw_line();
 void _put_pixel(uint32_t *screen_palette, uint32_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
 
 uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map);
-uint8_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
+uint16_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
 
 // Sprite tables
 void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite);
@@ -66,10 +66,10 @@ bool graphics_init(gfx_t* gfx)
     gfx->tile_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
     gfx->tile_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
     
-    gfx->tile_palette[0] = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
-    gfx->tile_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
-    gfx->tile_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
-    gfx->tile_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    gfx->sprite_palette[0] = SDL_MapRGBA(gfx->screen->format, 0xFF, 0xFF, 0xFF, 0x00);
+    gfx->sprite_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
+    gfx->sprite_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
+    gfx->sprite_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
 
     return (gfx->screen != NULL);
 }
@@ -241,148 +241,36 @@ void graphics_update(context_t *ctx, int cycles)
 //    }
 //}
 
-/*
- * Puts the pixel at position x in the line data(1,2) into buf.
- */
-void _put_pixel(uint32_t* screen_palette, uint32_t* buf, uint8_t palette, int x, int data1, int data2)
+int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y)
 {
-    // Pixel 0 is in Bit 7 -> 0x80 >> tile_x
-    // Bit from data2 is bit 1 in color -> 6 - tile_x
-    // Bit from data1 is bit 0 in color -> 7 - tile_x
-    int index =
-            (((data2 & (0x80 >> x)) >> (7 - x)) << 1) |
-            ((data1 & (0x80 >> x)) >> (7 - x));
-    index *= 2;
-
-    *buf = screen_palette[((palette & (0x3 << index)) >> index)];
-}
-
-//void __draw_line(context_t *ctx)
-//{
-//    SDL_Surface* screen = ctx->gfx->screen;
-//
-//    // Scroll background by x / y
-//    uint8_t  r_scx  = mem_read(ctx->mem, R_SCX);
-//    uint8_t  r_scy  = mem_read(ctx->mem, R_SCY);
-//
-//    // Window x & y position
-//    uint8_t  r_wx   = mem_read(ctx->mem, R_WX) - 7;
-//    uint8_t  r_wy   = mem_read(ctx->mem, R_WY);
-//
-//    // LCD control
-//    uint8_t  r_lcdc = mem_read(ctx->mem, R_LCDC);
-//    // Current line
-//    uint8_t* r_ly   = mem_address(ctx->mem, R_LY);
-//
-//    // Background palette
-//    register uint8_t  r_bgp  = mem_read(ctx->mem, R_BGP);
-//
-//    // Stores "pointers" to the correct tile data
-//    uint8_t* bg_tile_map =
-//        BIT_ISSET(r_lcdc, R_LCDC_BG_TILE_MAP) ?
-//            //0x9C00 : 0x9800;
-//            mem_address(ctx->mem, 0x9C00) : mem_address(ctx->mem, 0x9800);
-//    uint8_t* window_tile_map =
-//        BIT_ISSET(r_lcdc, R_LCDC_WINDOW_TILE_MAP) ?
-//            mem_address(ctx->mem, 0x9C00) : mem_address(ctx->mem, 0x9800);
-//
-//    // If tiles are stored from 0x8800 onwards,
-//    // the pointer in the tile map is signed.
-//    bool signed_tile_id = !BIT_ISSET(r_lcdc, R_LCDC_TILE_DATA);
-//
-//    bool window_enabled = BIT_ISSET(r_lcdc, R_LCDC_WINDOW_ENABLED);
-//
-//    // Tile data basepointer
-//    uint8_t* tile_data_base;
-//    tile_data_base = signed_tile_id ?
-//            mem_address(ctx->mem, 0x8800) : mem_address(ctx->mem, 0x8000);
-//    
-//    int screen_y = *r_ly;
-//    int screen_x;
-//
-//    // TODO implement window support
-//    assert(!window_enabled);
-//    
-//    if (!graphics_lock(ctx->gfx))
-//    {
-//        printf("graphics_lock() failed\n");
-//        return;
-//    }
-//
-//    // Draw background & window tiles
-//    for (screen_x = 0; screen_x < 160; screen_x++)
-//    {
-//        int map_x, map_y;
-//        int tile_row, tile_col, tile_id;
-//        int tile_x, tile_y;
-//        //uint16_t tile_map = bg_tile_map, tile_id_addr;
-//        uint8_t* tile_data;
-//
-//        // Find correct entry in the tile map
-//        map_y    = (screen_y + r_scy) % MAP_H;
-//        map_x    = (screen_x + r_scx) % MAP_W;
-//
-//        tile_row = ((uint8_t)(map_y / 8)) * 32;
-//        tile_col = (map_x / 8);
-//
-//        // Load tile id from tile map
-////        tile_id_addr = tile_map + tile_row + tile_col;
-////        if (signed_tile_id)
-////            tile_id = ((int8_t)mem_read(ctx->mem, tile_id_addr))+ 128;
-////        else
-////            tile_id = mem_read(ctx->mem, tile_id_addr);
-//        
-//        tile_id = *(bg_tile_map + tile_row + tile_col);
-//        if (signed_tile_id)
-//            tile_id += 128;
-//
-//        // Load tile data
-//        tile_y = map_y % 8;
-//        tile_x = map_x % 8;
-//
-//        if (map_y % 8 == 0 && map_x % 8 == 0 && map_y > 15)
-//        {
-//            int i = 0;
-//        }
-//
-//        tile_data = tile_data_base + tile_id * 16 + tile_y * 2;
-//
-//        _put_pixel(
-//            ctx->gfx,
-//            (uint8_t*)screen->pixels + screen_y * screen->pitch + screen_x,
-//            r_bgp,
-//            tile_x,
-//            *tile_data,
-//            *(tile_data + 1)
-//        );
-//    }
-//
-//    // TODO Is this correct?
-//    (*r_ly)++;
-//    
-//    graphics_unlock(ctx->gfx);
-//}
-
-void _put_tile(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette, uint8_t palette, int x, int y, int tile_x, int tile_y)
-{
+    assert(screen_x < SCREEN_W);
+    assert(screen_y < SCREEN_H);
+    
     int i;
     int bpp = screen->format->BytesPerPixel;
-    uint32_t *pixels = (uint32_t*)screen->pixels + (y * screen->pitch) + (x * bpp);
+    uint32_t *pixels = (uint32_t*)(screen->pixels + (screen_y * screen->pitch) + (screen_x * bpp));
     
-    tile += tile_y * 2;
+    tile += tile_y;
     
-    for (i = tile_x; i < TILE_WIDTH; i++)
+    for (i = tile_x; i < TILE_WIDTH && screen_x + i < SCREEN_W; i++)
     {
-        int color = (((*tile & (0x8000 >> (2*i))) >> (15 - i)) << 1) | ((*tile & (0x0080 >> i)) >> (7 - i));
-        color *= 2;
-        color = ((palette & (0x3 << color)) >> color);
+        int index = (*tile) & (0x8080 >> i); // Get bit 16-i and 8-i
+        index >>= 7 - i;                     // Right align
+        index = index % 254;                 // Get rid of bits 7 to 1
+        // index now holds a number between 0 and 3
+        // Double the result to get the number of times we have to left shift below.
+        index <<= 1;
+        
+        int color = ((palette & (0x3 << index)) >> index);
         
         *pixels = screen_palette[color];
-        pixels += bpp;
+        pixels++;
     }
+    
+    return TILE_WIDTH - tile_x;
 }
 
-void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
+void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
 {
     SDL_Surface *screen = ctx->gfx->screen;
     int bpp = screen->format->BytesPerPixel;
@@ -396,30 +284,21 @@ void _draw_bg(const context_t *ctx, int screen_x, int screen_y, int offset_x, in
     // to calculate at which y coordinate we are within a tile.
     int tile_y = bg_y % 8;
     
-    for (; screen_x < 160; screen_x++)
+    while (screen_x < 160)
     {
         // These calculations are analogous to bg_y et al above.
         int bg_x   = (screen_x + offset_x) % MAP_W;
         int tile_x = bg_x % 8;
         
         uint8_t tile_id = _get_tile_id(ctx->mem, bg_x, bg_y, tile_map);
-        uint8_t *tile = _get_tile_data(ctx->mem, tile_id, tile_data);
+        uint16_t *tile = _get_tile_data(ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
-        tile += tile_y * 2;
-        
-        _put_pixel(
-           ctx->gfx->tile_palette,
-           (uint32_t*)(screen->pixels + screen_y * screen->pitch + screen_x * bpp),
-           palette,
-           tile_x,
-           *tile,
-           *(tile + 1)
-        );
+        screen_x += _put_tile_line(ctx->gfx->screen, tile, ctx->gfx->tile_palette, palette, screen_x, screen_y, tile_x, tile_y);
     }
 }
 
-void _draw_sprite(context_t *ctx, sprite_t sprite, int screen_y)
+void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
 {
     SDL_Surface *screen = ctx->gfx->screen;
     int bpp = screen->format->BytesPerPixel;
@@ -460,7 +339,7 @@ void _draw_line(context_t *ctx) {
         tile_map_t bg_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_BG_TILE_MAP) ?
             TILE_MAP_LOW : TILE_MAP_HIGH;
         
-        _draw_bg(
+        _draw_bg_line(
             ctx,
             0, screen_y,
             r_scx, r_scy,
@@ -480,7 +359,7 @@ void _draw_line(context_t *ctx) {
             
             uint8_t r_wx = mem_read(ctx->mem, R_WX) - 7;
             
-            _draw_bg(
+            _draw_bg_line(
                 ctx,
                 r_wx, screen_y,
                 0, ctx->gfx->window_y,
@@ -580,7 +459,7 @@ uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map)
     return mem_read(mem, (int)tile_map + index);
 }
 
-uint8_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data)
+uint16_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data)
 {
     int tile_addr;
     
