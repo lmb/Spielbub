@@ -74,24 +74,16 @@ bool graphics_init(gfx_t* gfx)
     );
     
     // Transparent, Light Grey, Dark Grey, Black
-    SDL_Color colors_bg[4] = {
+    SDL_Color colors[4] = {
         { .r = 0xFF, .g = 0x00, .b = 0xFF },
         { .r = 0xCC, .g = 0xCC, .b = 0xCC },
         { .r = 0x77, .g = 0x77, .b = 0x77 },
         { .r = 0x00, .g = 0x00, .b = 0x00 }
     };
     
-    gfx->background = _init_surface(colors_bg);
-    
-    SDL_Color colors_sprite[4] = {
-        { .r = 0xFF, .g = 0x00, .b = 0xFF },
-        { .r = 0xCC, .g = 0xCC, .b = 0xCC },
-        { .r = 0x77, .g = 0x77, .b = 0x77 },
-        { .r = 0x00, .g = 0x00, .b = 0x00 }
-    };
-    
-    gfx->sprites_bg = _init_surface(colors_sprite);
-    gfx->sprites_fg = _init_surface(colors_sprite);
+    gfx->background = _init_surface(colors);
+    gfx->sprites_bg = _init_surface(colors);
+    gfx->sprites_fg = _init_surface(colors);
     
     gfx->screen_white = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
 
@@ -291,8 +283,21 @@ int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int scr
     
     tile += tile_y;
     
-    for (i = tile_x; i < TILE_WIDTH && screen_x + i < SCREEN_W; i++)
+    int step;
+    
+    if (tile_x < 0) {
+        tile_x *= -1;
+        step = -1;
+    }
+    else
     {
+        step = 1;
+    }
+    
+    for (i = tile_x; i >= 0 && i < TILE_WIDTH; i += step)
+    {
+        if (screen_x + i >= SCREEN_W) { continue; }
+        
         int index = (*tile) & (0x8080 >> i); // Get bit 16-i and 8-i
         index >>= 7 - i;                     // Right align
         index = index % 254;                 // Get rid of bits 7 to 1
@@ -302,7 +307,9 @@ int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int scr
         
         int color = ((palette & (0x3 << index)) >> index);
         
-        *pixels = color;
+        if (color != 0) {
+            *pixels = color;
+        }
         pixels++;
     }
     
@@ -339,18 +346,24 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
     int sprite_y = screen_y - (sprite.y - SPRITE_HEIGHT);
     int screen_x = sprite.x - SPRITE_WIDTH;
     
+    SDL_Surface *surface;
+    
     if (screen_x >= 160) {
         // Off-screen sprites are simply ignored.
         return;
     }
     
+    surface = BIT_ISSET(sprite.flags, SPRITE_F_TRANSLUCENT) ? ctx->gfx->sprites_bg : ctx->gfx->sprites_fg;
+    
     uint16_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
     palette = mem_read(ctx->mem, palette);
     
+    int sprite_x = BIT_ISSET(sprite.flags, SPRITE_F_X_FLIP) ? -7 : 0;
+    
     uint16_t *tile = _get_tile_data(ctx->mem, sprite.tile_id, TILE_DATA_LOW);
     
-    _put_tile_line(ctx->gfx->sprites_fg, tile, palette,
-        screen_x, screen_y, 0, sprite_y);
+    _put_tile_line(surface, tile, palette,
+        screen_x, screen_y, sprite_x, sprite_y);
 }
 
 /*
@@ -433,6 +446,8 @@ void _draw_line(context_t *ctx) {
                 _add_sprite_to_table(&sprites, sprite);
             }
         }
+        
+        assert(sprite_height == 8);
         
         // <sprites> holds the 10 sprites with highest priority,
         // sorted by ascending x coordinate. Since sprites
