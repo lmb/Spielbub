@@ -48,6 +48,19 @@ void _set_mode(context_t *ctx, gfx_state_t state)
         cpu_irq(ctx, I_LCDC);
 }
 
+SDL_Surface* _init_surface(SDL_Color *colors)
+{
+    SDL_Surface *sfc = SDL_CreateRGBSurface(
+        SDL_SWSURFACE | SDL_SRCCOLORKEY, SCREEN_W, SCREEN_H, 8, 0, 0, 0, 0);
+    
+    if (sfc == NULL) { return NULL; }
+    
+    SDL_SetColors(sfc, colors, 0, 4);
+    SDL_SetColorKey(sfc, SDL_SRCCOLORKEY, SDL_MapRGB(sfc->format, 0xFF, 0x00, 0xFF));
+    
+    return sfc;
+}
+
 /*
  * Inits the SDL surface and palette colors.
  */
@@ -60,16 +73,27 @@ bool graphics_init(gfx_t* gfx)
         SDL_SWSURFACE
     );
     
-    // White, Light Grey, Dark Grey, Black
-    gfx->tile_palette[0] = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
-    gfx->tile_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
-    gfx->tile_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
-    gfx->tile_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    // Transparent, Light Grey, Dark Grey, Black
+    SDL_Color colors_bg[4] = {
+        { .r = 0xFF, .g = 0x00, .b = 0xFF },
+        { .r = 0xCC, .g = 0xCC, .b = 0xCC },
+        { .r = 0x77, .g = 0x77, .b = 0x77 },
+        { .r = 0x00, .g = 0x00, .b = 0x00 }
+    };
     
-    gfx->sprite_palette[0] = SDL_MapRGBA(gfx->screen->format, 0xFF, 0xFF, 0xFF, 0x00);
-    gfx->sprite_palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
-    gfx->sprite_palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
-    gfx->sprite_palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    gfx->background = _init_surface(colors_bg);
+    
+    SDL_Color colors_sprite[4] = {
+        { .r = 0xFF, .g = 0x00, .b = 0xFF },
+        { .r = 0xCC, .g = 0xCC, .b = 0xCC },
+        { .r = 0x77, .g = 0x77, .b = 0x77 },
+        { .r = 0x00, .g = 0x00, .b = 0x00 }
+    };
+    
+    gfx->sprites_bg = _init_surface(colors_sprite);
+    gfx->sprites_fg = _init_surface(colors_sprite);
+    
+    gfx->screen_white = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
 
     return (gfx->screen != NULL);
 }
@@ -113,12 +137,14 @@ void graphics_update(context_t *ctx, int cycles)
 
         return;
     }
+    
+    gfx_t *gfx = ctx->gfx;
 
-    ctx->gfx->cycles += cycles;
-    switch (ctx->gfx->state)
+    gfx->cycles += cycles;
+    switch (gfx->state)
     {
         case OAM:
-            ctx->gfx->state = OAM_WAIT;
+            gfx->state = OAM_WAIT;
             if (mem_read(ctx->mem, R_LY) == mem_read(ctx->mem, R_LYC))
             {
                 // LY coincidence interrupt
@@ -132,29 +158,29 @@ void graphics_update(context_t *ctx, int cycles)
                 BIT_RESET(*r_stat, R_STAT_LY_COINCIDENCE);
 
         case OAM_WAIT:
-            if (ctx->gfx->cycles >= 80)
+            if (gfx->cycles >= 80)
             {
-                ctx->gfx->cycles -= 80;
+                gfx->cycles -= 80;
                 _set_mode(ctx, TRANSF);
             }
             break;
 
         case TRANSF:
-            if (ctx->gfx->cycles >= 172)
+            if (gfx->cycles >= 172)
             {
-                ctx->gfx->cycles -= 172;
+                gfx->cycles -= 172;
                 _set_mode(ctx, HBLANK);
             }
             break;
 
         case HBLANK:
             _draw_line(ctx);
-            ctx->gfx->state = HBLANK_WAIT;
+            gfx->state = HBLANK_WAIT;
 
         case HBLANK_WAIT:
-            if (ctx->gfx->cycles >= 204)
+            if (gfx->cycles >= 204)
             {
-                ctx->gfx->cycles -= 204;
+                gfx->cycles -= 204;
                 if (mem_read(ctx->mem, R_LY) == 144)
                 {
                     _set_mode(ctx, VBLANK);
@@ -167,18 +193,31 @@ void graphics_update(context_t *ctx, int cycles)
             break;
 
         case VBLANK:
-            SDL_Flip(ctx->gfx->screen);
+        {
+            //SDL_Rect whole_screen = { .x = 0, .y = 0, .w = SCREEN_W, .h = SCREEN_H };
+            
+            SDL_FillRect(gfx->screen, NULL, gfx->screen_white);
+            SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->screen, NULL);
+            SDL_BlitSurface(gfx->background, NULL, gfx->screen, NULL);
+            SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->screen, NULL);
+            
+            SDL_Flip(gfx->screen);
+            
+            SDL_FillRect(gfx->sprites_bg, NULL, gfx->sprites_bg->format->colorkey);
+            SDL_FillRect(gfx->background, NULL, gfx->background->format->colorkey);
+            SDL_FillRect(gfx->sprites_fg, NULL, gfx->sprites_fg->format->colorkey);
             
             cpu_irq(ctx, I_VBLANK);
             
-            ctx->gfx->state = VBLANK_WAIT;
-            ctx->gfx->window_y = 0;
+            gfx->state = VBLANK_WAIT;
+            gfx->window_y = 0;
+        }
 
         case VBLANK_WAIT:
-            if (ctx->gfx->cycles >= 456)
+            if (gfx->cycles >= 456)
             {
                 uint8_t* r_ly = mem_address(ctx->mem, R_LY);
-                ctx->gfx->cycles -= 456;
+                gfx->cycles -= 456;
                 
                 if ((*r_ly)++ == 153)
                 {
@@ -241,14 +280,14 @@ void graphics_update(context_t *ctx, int cycles)
 //    }
 //}
 
-int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y)
+int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y)
 {
     assert(screen_x < SCREEN_W);
     assert(screen_y < SCREEN_H);
     
     int i;
     int bpp = screen->format->BytesPerPixel;
-    uint32_t *pixels = (uint32_t*)(screen->pixels + (screen_y * screen->pitch) + (screen_x * bpp));
+    uint8_t *pixels = (uint8_t*)(screen->pixels + (screen_y * screen->pitch) + (screen_x * bpp));
     
     tile += tile_y;
     
@@ -263,7 +302,7 @@ int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint32_t *screen_palette
         
         int color = ((palette & (0x3 << index)) >> index);
         
-        *pixels = screen_palette[color];
+        *pixels = color;
         pixels++;
     }
     
@@ -281,7 +320,7 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
     // to calculate at which y coordinate we are within a tile.
     int tile_y = bg_y % 8;
     
-    while (screen_x < 160)
+    while (screen_x < SCREEN_W)
     {
         // These calculations are analogous to bg_y et al above.
         int bg_x   = (screen_x + offset_x) % MAP_W;
@@ -291,7 +330,7 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
         uint16_t *tile = _get_tile_data(ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
-        screen_x += _put_tile_line(ctx->gfx->screen, tile, ctx->gfx->tile_palette, palette, screen_x, screen_y, tile_x, tile_y);
+        screen_x += _put_tile_line(ctx->gfx->background, tile, palette, screen_x, screen_y, tile_x, tile_y);
     }
 }
 
@@ -305,12 +344,12 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
         return;
     }
     
-    uint8_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
+    uint16_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
     palette = mem_read(ctx->mem, palette);
     
     uint16_t *tile = _get_tile_data(ctx->mem, sprite.tile_id, TILE_DATA_LOW);
     
-    _put_tile_line(ctx->gfx->screen, tile, ctx->gfx->sprite_palette, palette,
+    _put_tile_line(ctx->gfx->sprites_fg, tile, palette,
         screen_x, screen_y, 0, sprite_y);
 }
 
@@ -389,7 +428,7 @@ void _draw_line(context_t *ctx) {
             
             // OAM entries specify the y coordinate of the sprites'
             // lower border (?)
-            if (screen_y >= real_sprite_y && screen_y <= real_sprite_y + sprite_height)
+            if (screen_y >= real_sprite_y && screen_y < real_sprite_y + sprite_height)
             {
                 _add_sprite_to_table(&sprites, sprite);
             }

@@ -23,10 +23,11 @@ struct gfx_opaque_t
     gfx_state_t  state;
     
     SDL_Surface *screen;
+    SDL_Surface *sprites_bg;
+    SDL_Surface *sprites_fg;
+    SDL_Surface *background;
     
-    // Precomputed colors.
-    uint32_t      tile_palette[4];
-    uint32_t      sprite_palette[4];
+    uint32_t screen_white;
 };
 
 // This is completely unportable.
