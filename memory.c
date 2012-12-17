@@ -38,13 +38,6 @@ uint8_t const ioregs_init[0x4C] = {
     0x91,    0,    0,    0,    0,    0,    0, 0xFC, 0xFF, 0xFF,    0,    0                          // 4x
 };
 
-void mbc1_init(memory_t *mem)
-{
-    // TODO: Check malloc
-    mem->ram = malloc(0x2000);
-    mem->map[5] = mem->ram;
-}
-
 void mem_init(memory_t *mem)
 {
     // TODO: Does this even set all items to NULL?
@@ -196,41 +189,62 @@ void mem_write_ioregs(memory_t *mem, const uint8_t* data)
 
 // __ Memory bank controllers __________________
 
+void mbc1_init(memory_t *mem)
+{
+    assert(mem->mbc_state.mode == 0);
+    
+    // TODO: Check malloc
+    mem->ram = malloc(0x2000);
+    mem->map[5] = mem->ram;
+}
+
 void mbc1(memory_t *mem, int addr, uint8_t value)
 {
-    // 0 = 16/8; 1 = 4/32
-    static int mode = 0;
-
     // Different actions are executed depending
     // on the ROM address that the program tries
     // to write to.
     if (addr >= 0x6000)
     {
         // Change addressing mode
-        if (mode != (value & 1))
+        if (mem->mbc_state.mode != (value & 1))
         {
-            mode = value & 1;
-            mem->ram  = realloc(mem->ram, mode ? 0x8000 : 0x2000);
+            if (mem->mbc_state.mode == 0)
+            {
+                // Switching to mode 1
+                mem->mbc_state.upper_rom_bits = 0;
+                mem->ram = realloc(mem->ram, 0x8000);
+            }
+            else
+            {
+                // Switching to mode 0
+                mem->ram = realloc(mem->ram, 0x2000);
+            }
+            
+            mem->mbc_state.mode = value & 1;
+            // TODO: Does this honor previous RAM bank settings?
+            mem->map[5] = mem->ram;
         }
     }
-    else if (0x4000 <= addr)
+    else if (addr >= 0x4000)
     {
         // RAM bank switching
-        if (mode == 0)
+        if (mem->mbc_state.mode == 0)
         {
-            // TODO: is this correct?
-            mem->map[5] = mem->ram;
+            mem->mbc_state.upper_rom_bits = (value & 0x3) << 5;
         }
         else
         {
-            int bank  = value & 3;
+            int bank = value & 0x3;
             mem->map[5] = mem->ram + (bank * 0x2000);
         }
     }
-    else if (0x2000 <= addr)
+    else if (addr >= 0x2000)
     {
         // ROM bank switching
-        int bank = value & 31;
+        int bank = (value & 0x1F);
+        if (bank == 0) bank = 1;
+        bank |= mem->mbc_state.upper_rom_bits;
+        
         mem->map[2] = mem->rom + (bank * 0x4000);
         mem->map[3] = mem->rom + (bank * 0x4000) + 0x2000;
     }

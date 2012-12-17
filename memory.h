@@ -8,10 +8,17 @@
 
 /*
  * Memory Bank Controllers
- * The gameboy uses several different memory controllers.
  */
 typedef void (*mem_ctrl_init_f)(memory_t*);          // Initializer
 typedef void (*mem_ctrl_f)(memory_t*, int, uint8_t); // Emulator
+
+typedef struct {
+    // 0 = 16 MBit ROM/8 KByte RAM; 1 = 4 MBit ROM/32 KByte RAM (MBC1)
+    int mode;
+    
+    // Used in mode 0
+    int upper_rom_bits;
+} mbc_t;
 
 struct memory_opaque_t {
     // Current memory controller
@@ -26,6 +33,7 @@ struct memory_opaque_t {
     uint8_t* rom;
     
     rom_meta meta;
+    mbc_t mbc_state;
 };
 
 void mem_init(memory_t*);
