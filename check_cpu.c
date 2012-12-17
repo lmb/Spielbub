@@ -9,16 +9,32 @@
 #include <stdlib.h>
 #include <string.h>
 #include <check.h>
+#include <assert.h>
 
 #include "context.h"
 #include "cpu.h"
 #include "cpu_ops.h"
 #include "graphics.h"
 #include "hardware.h"
+#include "memory.h"
 
-#define CONTEXT context_t context; context_t *ctx = &context; \
+// Fixtures
+context_t context;
+context_t *ctx;
+
+void setup_cpu(void)
+{
+    ctx = &context;
     context_create(ctx);
-#define ENDCONTEXT context_destroy(ctx);
+    cpu_init(ctx->cpu);
+    mem_init_debug(ctx->mem);
+}
+
+void teardown_cpu(void)
+{
+    context_destroy(ctx);
+    ctx = NULL;
+}
 
 // CONTEXT
 START_TEST (test_context_create)
@@ -40,21 +56,14 @@ END_TEST
 // CPU
 START_TEST (test_cpu_init)
 {
-    CONTEXT
-    cpu_init(ctx->cpu);
     cpu_t *cpu = ctx->cpu;
     
     fail_unless(cpu->AF.W == 0x01B0, "AF not initialized to 0x01B0");
-    
-    ENDCONTEXT
 }
 END_TEST
 
 START_TEST (test_cpu_add)
 {
-    CONTEXT
-    cpu_init(ctx->cpu);
-    
     _A = 0;
     _add(ctx, 13, false);
     
@@ -68,16 +77,11 @@ START_TEST (test_cpu_add)
     fail_unless(_A == 1, "_add with overflow failed, _A = %d", _A);
     fail_unless(GET_C() == 1, "_add failed to set C flag");
     // TODO: GET_H()
-    
-    ENDCONTEXT
 }
 END_TEST
 
 START_TEST (test_cpu_sub)
 {
-    CONTEXT
-    cpu_init(ctx->cpu);
-    
     _A = 100;
     _sub(ctx, 10, false);
     
@@ -104,10 +108,32 @@ START_TEST (test_cpu_sub)
 //    fail_unless(_A == 1, "_add with overflow failed, _A = %d", _A);
 //    fail_unless(GET_C() == 1, "_add failed to set C flag");
 //    // TODO: GET_H()
-    
-    ENDCONTEXT
 }
 END_TEST
+
+void cpu_test_store(context_t *ctx, uint8_t opcode, uint8_t value);
+
+START_TEST (test_cpu_ld)
+{
+    uint8_t opcode = _i;
+    
+    if (0x76 == opcode)
+        return;
+    
+    // Run tests for LD (HL), <X> only with values > 0x80 and < 0xFF
+    if (opcode < 0x70 || opcode >= 0x78) {
+        cpu_test_store(ctx, opcode, 0x00);
+        cpu_test_store(ctx, opcode, 0xFF);
+        cpu_test_store(ctx, opcode, 0x55);
+    }
+
+    cpu_test_store(ctx, opcode, 0xAA);
+    cpu_test_store(ctx, opcode, 0xFE);
+    cpu_test_store(ctx, opcode, 0x81);
+}
+END_TEST
+
+#undef CPU_RUN_TEST
 
 // Graphics
 START_TEST (test_gfx_sprite_t)
@@ -189,9 +215,11 @@ Suite * spielbub_suite(void)
     
     // CPU test cases
     TCase *tc_cpu = tcase_create("CPU");
+    tcase_add_checked_fixture(tc_cpu, setup_cpu, teardown_cpu);
     tcase_add_test(tc_cpu, test_cpu_init);
     tcase_add_test(tc_cpu, test_cpu_add);
     tcase_add_test(tc_cpu, test_cpu_sub);
+    tcase_add_loop_test(tc_cpu, test_cpu_ld, 0x40, 0x80);
     
     suite_add_tcase(s, tc_cpu);
     
@@ -218,3 +246,95 @@ int main(void)
     
     return (number_failed == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
+
+uint8_t* op_get_src(context_t *ctx, uint8_t opcode) {
+    cpu_t *cpu = ctx->cpu;
+    
+    assert(0x40 <= opcode && opcode < 0xC0);
+    
+    opcode %= 0x8;
+    
+    switch (opcode)
+    {
+        case 0x0: // B
+            return &(cpu->BC.B.h);
+        case 0x1: // C
+            return &(cpu->BC.B.l);
+        case 0x2: // D
+            return &(cpu->DE.B.h);
+        case 0x3: // E
+            return &(cpu->DE.B.l);
+        case 0x4: // H
+            return &(cpu->HL.B.h);
+        case 0x5: // L
+            return &(cpu->HL.B.l);
+        case 0x6: // addr in HL
+            return mem_address(ctx->mem, cpu->HL.W);
+        case 0x7: // A
+            return &(cpu->AF.B.h);
+            
+        default:
+            return NULL;
+    }
+}
+
+uint8_t* op_get_dst(context_t *ctx, uint8_t opcode) {
+    cpu_t *cpu = ctx->cpu;
+    
+    assert(0x40 <= opcode && opcode < 0xA0);
+    
+    opcode /= 0x8;
+    opcode -= 0x8;
+    
+    switch (opcode) {
+        case 0x0: // B
+            return &(cpu->BC.B.h);
+        case 0x1: // C
+            return &(cpu->BC.B.l);
+        case 0x2: // D
+            return &(cpu->DE.B.h);
+        case 0x3: // E
+            return &(cpu->DE.B.l);
+        case 0x4: // H
+            return &(cpu->HL.B.h);
+        case 0x5: // L
+            return &(cpu->HL.B.l);
+        case 0x6: // addr in HL
+            return mem_address(ctx->mem, cpu->HL.W);
+        case 0x7: // A
+            return &(cpu->AF.B.h);
+            
+        default:
+            return NULL;
+    }
+}
+
+void cpu_setup_test(context_t *ctx, uint8_t opcode)
+{
+    // This resets all registers.
+    cpu_init(ctx->cpu);
+    
+    ctx->mem->map[0][ctx->cpu->PC.W] = opcode;
+    
+    // Point HL into "safe" ram:
+    // < 0x8000 goes to memory controller;
+    // >= 0xFF00 writes to various ioregs,
+    // which will cause problems.
+    ctx->cpu->HL.W = 0x8001;
+
+}
+
+void cpu_test_store(context_t *ctx, uint8_t opcode, uint8_t value)
+{
+    cpu_setup_test(ctx, opcode);
+    
+    uint8_t *src = op_get_src(ctx, opcode), *dst;
+    
+    *src = value;
+    dst = op_get_dst(ctx, opcode);
+    
+    cpu_run(ctx);
+    
+    fail_unless(*dst == *src, "Opcode 0x%X: failed with src = 0x%X, dst = 0x%X", opcode, *src, *dst);
+}
+

@@ -63,6 +63,18 @@ void mem_init(memory_t *mem)
     mem_write(mem, R_IE, 0);
 }
 
+void mem_init_debug(memory_t *mem)
+{
+    mem_init(mem);
+    mem->rom = malloc(5 * 0x2000);
+    
+    mem->map[0] = mem->rom;
+	mem->map[1] = mem->rom + 0x2000;
+	mem->map[2] = mem->rom + 0x4000;
+	mem->map[3] = mem->rom + 0x6000;
+    mem->map[5] = mem->rom + 0x8000;
+}
+
 void mem_destroy(memory_t *mem)
 {
 	if (mem->rom != NULL)
