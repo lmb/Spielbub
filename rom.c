@@ -40,6 +40,8 @@ uint8_t* rom_load(rom_meta* meta, char* filename)
 
 	meta->rom_banks = (uint8_t)pow(2, meta->rom_banks + 1);
 	log_dbg("Loading '%s', %d banks...\n", meta->name, meta->rom_banks);
+    
+    // TODO: Limit number of banks?
 
 	// Each rom bank is 16KB
 	req_mem = meta->rom_banks * 0x4000;

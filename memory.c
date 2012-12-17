@@ -111,6 +111,8 @@ bool mem_load_rom(memory_t *mem, char *filename)
         printf("No suitable memory controller found!\n");
         return false;
     }
+    
+    // TODO: Check minimum number of banks?
 
 	mem->map[0] = mem->rom;
 	mem->map[1] = mem->rom + 0x2000;
@@ -124,7 +126,7 @@ uint8_t mem_read(const memory_t* mem, register int addr)
 {
 	ADDR_TO_BANK_OFFSET(addr);
     
-    // TODO: Check for null bank pointers
+    assert(mem->map[bank] != NULL);
     
 	return mem->map[bank][offset];
 }
@@ -133,7 +135,7 @@ uint8_t* mem_address(const memory_t* mem , int addr)
 {
 	ADDR_TO_BANK_OFFSET(addr);
     
-    // TODO: Check for null bank pointers
+    assert(mem->map[bank] != NULL);
     
 	return mem->map[bank] + offset;
 }
@@ -148,7 +150,8 @@ void mem_write(memory_t *mem, int addr, uint8_t value)
         // This is ROM, forward to MBC
         if (mem->controller != NULL)
             mem->controller(mem, addr, value);
-        // TODO: Handle else case!
+        // else: ignored, since there are ROM only
+        // carts that simply do nothing at this point.
         return;
     }
 
@@ -166,10 +169,6 @@ void mem_write(memory_t *mem, int addr, uint8_t value)
             dst = mem_address(mem, OAM_START);
             memcpy((void*)dst, src, 0xA0);
             return;
-
-        /*case R_JOYPAD:
-            // TODO: Re-enable joypad
-            //mem->map[bank][offset] = joypad_get_state(context, value);*/
 
         default:
             // Put value into memory

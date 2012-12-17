@@ -12,6 +12,8 @@ typedef enum {
 typedef union {
     uint16_t W;
     struct {
+        // Swap this for big-endian (?)
+        // TODO: Write a test case for struct order
         uint8_t l, h;
     } B;
 } reg_t;
