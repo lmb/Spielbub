@@ -7,14 +7,14 @@
 
 void _push(context_t *ctx, reg_t* reg)
 {
-    mem_write(ctx->mem, _SP--, reg->B.h);
-    mem_write(ctx->mem, _SP--, reg->B.l);
+    mem_write(ctx->mem, --_SP, reg->B.h);
+    mem_write(ctx->mem, --_SP, reg->B.l);
 }
 
 void _pop(context_t *ctx, reg_t* reg)
 {
-    reg->B.l = mem_read(ctx->mem, ++_SP);
-    reg->B.h = mem_read(ctx->mem, ++_SP);
+    reg->B.l = mem_read(ctx->mem, _SP++);
+    reg->B.h = mem_read(ctx->mem, _SP++);
 }
 
 // ___ ALU __________________________________________
