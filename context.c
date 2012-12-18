@@ -31,6 +31,9 @@ bool context_create(context_t *ctx)
     ctx->mem = malloc(sizeof(memory_t));
     memset(ctx->mem, 0, sizeof(memory_t));
     
+    ctx->timers = malloc(sizeof(timers_t));
+    memset(ctx->timers, 0, sizeof(timers_t));
+    
     return true;
 }
 

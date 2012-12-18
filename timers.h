@@ -3,6 +3,11 @@
 
 #include "context.h"
 
-void timers_update(context_t *context, int cycles);
+struct timers_opaque_t {
+    unsigned int divider_cycles;
+    unsigned int timer_cycles;
+};
+
+void timers_update(context_t *ctx, int cycles);
 
 #endif//__TIMERS_H__

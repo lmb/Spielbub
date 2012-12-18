@@ -153,6 +153,8 @@ void mem_write(memory_t *mem, int addr, uint8_t value)
     switch (addr)
     {
         case R_DIV:
+            // Writing to the Divider Register resets it to zero,
+            // regardless of value.
             mem->map[bank][offset] = 0;
             return;
 

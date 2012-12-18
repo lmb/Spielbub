@@ -20,6 +20,9 @@ typedef struct ipc_opaque_t ipc_t;
 struct gfx_opaque_t;
 typedef struct gfx_opaque_t gfx_t;
 
+struct timers_opaque_t;
+typedef struct timers_opaque_t timers_t;
+
 typedef struct {
     // CPU
     cpu_t *cpu;
@@ -28,7 +31,7 @@ typedef struct {
     memory_t *mem;
 
     // Timer
-    int timer_cycles;
+    timers_t *timers;
 
     // Graphics
     gfx_t *gfx;
