@@ -148,14 +148,6 @@ void run(context_t *context)
             }
         }
         
-        if (SDL_GetTicks() < context->next_run) {
-            unsigned int delay_by;
-            
-            delay_by = context->next_run - SDL_GetTicks();
-            SDL_Delay(delay_by);
-        }
         
-        // TODO: This does overflow at some point.
-        context->next_run += (int)TICKS_PER_FRAME;
     }
 }

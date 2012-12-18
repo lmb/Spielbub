@@ -37,7 +37,7 @@ struct cpu_opaque_t {
     bool halted;
     
     // Number of cycles executed
-    int cycles;
+    unsigned int cycles;
 };
 
 void cpu_init(cpu_t *cpu);
