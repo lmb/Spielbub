@@ -57,7 +57,6 @@ void cpu_interrupts(context_t *ctx)
     int i;
     for (i = 0; i < 5; i++)
     {
-        // We care about the first five bits.
         uint8_t mask = 1 << i;
 
         if (*r_if & mask && *r_ie & mask)
@@ -66,7 +65,9 @@ void cpu_interrupts(context_t *ctx)
             // code is interested in it.
             ctx->cpu->IME    = false;
             ctx->cpu->halted = false;
-
+            
+            // TODO: Jumping to an ISR possibly consumes 5 cycles
+            
             // Clear the interrupt from the interrupt
             // request register.
             *r_if &= ~mask;
@@ -77,11 +78,11 @@ void cpu_interrupts(context_t *ctx)
             // Select the appropriate ISR
             switch (i)
             {
-                case 0: _PC = 0x40; break; // VBLANK
-                case 1: _PC = 0x48; break; // LCDC
-                case 2: _PC = 0x50; break; // TIMER
-                case 3: _PC = 0x58; break; // SERIAL I/O
-                case 4: _PC = 0x60; break; // JOYPAD
+                case I_VBLANK:    _PC = 0x40; break;
+                case I_LCDC:      _PC = 0x48; break;
+                case I_TIMER:     _PC = 0x50; break;
+                case I_SERIAL_IO: _PC = 0x58; break;
+                case I_JOYPAD:    _PC = 0x60; break;
             }
 
             return;
