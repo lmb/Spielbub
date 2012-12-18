@@ -344,8 +344,7 @@ int cpu_run(context_t *ctx)
             case 0x73: mem_write(ctx->mem, _HL, _E); break;
             case 0x74: mem_write(ctx->mem, _HL, _H); break;
             case 0x75: mem_write(ctx->mem, _HL, _L); break;
-            // TODO: What happens here?
-            //case 0x76: /* HALT */ break;
+            // 0x76: HALT
             case 0x77: mem_write(ctx->mem, _HL, _A); break;
 
             // LD (HL), n
