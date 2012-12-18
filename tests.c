@@ -1,5 +1,5 @@
 //
-//  check_cpu.c
+//  tests.c
 //  spielbub
 //
 //  Created by Lorenz on 07.12.12.
@@ -17,6 +17,7 @@
 #include "graphics.h"
 #include "hardware.h"
 #include "memory.h"
+#include "probability_list.h"
 
 // Fixtures
 context_t context;
@@ -202,6 +203,42 @@ START_TEST (test_gfx_sprite_table)
 }
 END_TEST
 
+// Probability list
+START_TEST (test_prob_list)
+{
+    prob_list_t pl;
+    
+    pl_init(&pl);
+    
+    uint16_t const values[] = {
+        0x0392, 0xAF78, 0x8923, 0xFEAA, 0x2939, 0xFFFF, 0
+    };
+    
+    int i = 0;
+    
+    do {
+        fail_unless(pl_add(&pl, values[i]), "Could not add 0x%X to pl, value number %d", values[i], i+1);
+        i++;
+    } while (values[i] != 0);
+    
+    for (int j = 0; j < PL_MAX_VALUES - i; j++) {
+        fail_unless(pl_add(&pl, j), "Could not add 0x%X to pl, value number %d", j, j+i+1);
+    }
+    
+    fail_unless(pl.length == PL_MAX_VALUES, "Pl is not at max capacity");
+    
+    fail_unless(pl_add(&pl, 0x0) == false, "Added entry after pl was supposedly full");
+    
+    i = 0;
+    do {
+        fail_unless(pl_check(&pl, values[i]), "Pl failed to recognize added value 0x%X", values[i]);
+        i++;
+    } while (values[i] != 0);
+    
+    fail_unless(pl_check(&pl, 0xDEAD) == false, "Pl recognized a value that was not added");
+}
+END_TEST
+
 Suite * spielbub_suite(void)
 {
     Suite *s = suite_create("Spielbub");
@@ -210,7 +247,6 @@ Suite * spielbub_suite(void)
     TCase *tc_context = tcase_create("Context");
     tcase_add_test(tc_context, test_context_create);
     //tcase_add_test(tc_context, test_context_init);
-    
     suite_add_tcase(s, tc_context);
     
     // CPU test cases
@@ -220,15 +256,18 @@ Suite * spielbub_suite(void)
     tcase_add_test(tc_cpu, test_cpu_add);
     tcase_add_test(tc_cpu, test_cpu_sub);
     tcase_add_loop_test(tc_cpu, test_cpu_ld, 0x40, 0x80);
-    
     suite_add_tcase(s, tc_cpu);
     
     // Graphics
     TCase *tc_graphics = tcase_create("Graphics");
     tcase_add_test(tc_graphics, test_gfx_sprite_t);
     tcase_add_test(tc_graphics, test_gfx_sprite_table);
-    
     suite_add_tcase(s, tc_graphics);
+    
+    // Probability list
+    TCase *tc_pl = tcase_create("Probability list");
+    tcase_add_test(tc_pl, test_prob_list);
+    suite_add_tcase(s, tc_pl);
     
     return s;
 }

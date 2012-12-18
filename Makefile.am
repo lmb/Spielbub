@@ -1,9 +1,11 @@
-ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
+#ACLOCAL_AMFLAGS = ${ACLOCAL_FLAGS}
 
 bin_PROGRAMS = spielbub
 spielbub_nomain_SOURCES = \
 	debug.pb-c.c \
 	buffers.c \
+	murmur3.c \
+	probability_list.c \
 	context.c \
 	cpu.c \
 	cpu_ops.c \
@@ -22,11 +24,11 @@ spielbub_LDADD = $(SDL_LIBS) $(ZeroMQ_LIBS) $(protobufc_LIBS)
 spielbub_CFLAGS =$(SDL_CFLAGS) $(ZeroMQ_CFLAGS) $(AM_CFLAGS) $(protobufc_CFLAGS)
 dist_bin_SCRIPTS =
 
-TESTS = check_cpu
-check_PROGRAMS = check_cpu
-check_cpu_SOURCES = check_cpu.c $(spielbub_nomain_SOURCES)
-check_cpu_CFLAGS = @CHECK_CFLAGS@ $(spielbub_CFLAGS)
-check_cpu_LDADD = @CHECK_LIBS@ $(spielbub_LDADD)
+TESTS = check_all
+check_PROGRAMS = check_all
+check_all_SOURCES = tests.c $(spielbub_nomain_SOURCES)
+check_all_CFLAGS = @CHECK_CFLAGS@ $(spielbub_CFLAGS)
+check_all_LDADD = @CHECK_LIBS@ $(spielbub_LDADD)
 
 debug.pb-c.c: debug.proto
 	$(AM_V_GEN) $(PROTOC) --c_out=. $<
