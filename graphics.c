@@ -287,7 +287,7 @@ void graphics_update(context_t *ctx, int cycles)
 //    }
 //}
 
-int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y)
+int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y, bool transparent)
 {
     assert(screen_x < SCREEN_W);
     assert(screen_y < SCREEN_H);
@@ -322,7 +322,7 @@ int _put_tile_line(SDL_Surface *screen, uint16_t *tile, uint8_t palette, int scr
         
         int color = ((palette & (0x3 << index)) >> index);
         
-        if (color != 0) {
+        if (color != 0 || !transparent) {
             *pixels = color;
         }
         pixels++;
@@ -352,7 +352,7 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
         uint16_t *tile = _get_tile_data(ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
-        screen_x += _put_tile_line(ctx->gfx->background, tile, palette, screen_x, screen_y, tile_x, tile_y);
+        screen_x += _put_tile_line(ctx->gfx->background, tile, palette, screen_x, screen_y, tile_x, tile_y, false);
     }
 }
 
@@ -378,7 +378,7 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
     uint16_t *tile = _get_tile_data(ctx->mem, sprite.tile_id, TILE_DATA_LOW);
     
     _put_tile_line(surface, tile, palette,
-        screen_x, screen_y, sprite_x, sprite_y);
+        screen_x, screen_y, sprite_x, sprite_y, true);
 }
 
 /*
@@ -400,9 +400,9 @@ void _draw_line(context_t *ctx) {
         return;
     }
     
-    if (BIT_ISSET(r_lcdc, R_LCDC_BG_AND_WIN_ENABLED))
+    // Background
+    if (BIT_ISSET(r_lcdc, R_LCDC_BG_ENABLED))
     {
-        // Background
         uint8_t r_scx  = mem_read(ctx->mem, R_SCX);
         uint8_t r_scy  = mem_read(ctx->mem, R_SCY);
         
@@ -415,31 +415,28 @@ void _draw_line(context_t *ctx) {
             r_scx, r_scy,
             palette, bg_tile_map, tile_data
         );
-        
-        // Window
-        uint8_t r_wy = mem_read(ctx->mem, R_WY);
-        
-        if (BIT_ISSET(r_lcdc, R_LCDC_WINDOW_ENABLED) && r_wy >= screen_y)
-        {
-            // TODO: Remove this as soon as this codepath is tested
-            printf("window\n");
-            
-            tile_map_t window_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_WINDOW_TILE_MAP) ?
-            TILE_MAP_LOW : TILE_MAP_HIGH;
-            
-            uint8_t r_wx = mem_read(ctx->mem, R_WX) - 7;
-            
-            _draw_bg_line(
-                ctx,
-                r_wx, screen_y,
-                0, ctx->gfx->window_y,
-                palette, window_tile_map, tile_data
-            );
-            
-            ctx->gfx->window_y += 1;
-        }
     }
     
+    // Window
+    uint8_t r_wy = mem_read(ctx->mem, R_WY);
+    uint8_t r_wx = mem_read(ctx->mem, R_WX) - 7;
+    
+    if (BIT_ISSET(r_lcdc, R_LCDC_WINDOW_ENABLED) && screen_y >= r_wy && r_wx <= SCREEN_W - 1)
+    {
+        tile_map_t window_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_WINDOW_TILE_MAP) ?
+            TILE_MAP_LOW : TILE_MAP_HIGH;
+        
+        _draw_bg_line(
+            ctx,
+            r_wx, screen_y,
+            0, ctx->gfx->window_y,
+            palette, window_tile_map, tile_data
+        );
+            
+        ctx->gfx->window_y += 1;
+    }
+    
+    // Sprites
     if (BIT_ISSET(r_lcdc, R_LCDC_SPRITES_ENABLED))
     {
         int sprite_height = BIT_ISSET(r_lcdc, R_LCDC_SPRITES_LARGE) ? 16 : 8;

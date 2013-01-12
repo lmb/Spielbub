@@ -28,7 +28,7 @@
 #define R_LCDC_TILE_DATA (4)
 #define R_LCDC_SPRITES_LARGE (2)
 #define R_LCDC_SPRITES_ENABLED (1)
-#define R_LCDC_BG_AND_WIN_ENABLED (0)
+#define R_LCDC_BG_ENABLED (0)
 
 #define R_STAT (0xFF41)
 #define R_STAT_LYC_ENABLE (6)
