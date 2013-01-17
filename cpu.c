@@ -103,6 +103,12 @@ int cpu_run(context_t *ctx)
         cb_write(ctx->trace, &_PC);
 #endif
 
+        if (pl_check(&(ctx->cpu->breakpoints), _PC))
+        {
+            ctx->state = STOPPED;
+            return;
+        }
+    
         opcode = mem_read(ctx->mem, _PC++);
 
         switch(opcode)
@@ -1181,7 +1187,7 @@ int cpu_run(context_t *ctx)
                         break;
 
                     default:
-                        log_dbg("FATAL: unhandled opcode 0xCB%02X at %X\n", opcode, _PC);
+                        printf("FATAL: unhandled opcode 0xCB%02X at %X\n", opcode, _PC);
                         ctx->cpu->halted = true;
                         goto exit_loop;
                 }
@@ -1190,7 +1196,7 @@ int cpu_run(context_t *ctx)
                 break;
 
             default:
-                log_dbg("FATAL: unhandled opcode 0x%02X at %X\n", opcode, _PC);
+                printf("FATAL: unhandled opcode 0x%02X at %X\n", opcode, _PC);
                 ctx->cpu->halted = true;
                 goto exit_loop;
         }
