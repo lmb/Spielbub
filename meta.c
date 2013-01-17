@@ -9,7 +9,6 @@
  */
 void meta_parse(char* meta, const uint8_t* p)
 {
-#if defined(DEBUG)
     char *d, *t;
     char  b[20];
 
@@ -52,16 +51,9 @@ void meta_parse(char* meta, const uint8_t* p)
     {
         strcpy(meta, d);
     }
-#else
-    sprintf(meta, "0x%2X", *p);
-#endif
 }
 
-#if defined(DEBUG)
 #define OPCODE(x, y) {x, y}
-#else
-#define OPCODE(x, y) {y}
-#endif
 
 opcode_meta_t const opcode_meta[] = {
 	/* 0x00 */ OPCODE(               "NOP",  4),
@@ -580,3 +572,5 @@ opcode_meta_t const ext_opcode_meta[] = {
 	/* 0xFE */ OPCODE(        "SET 7,(HL)", 16),
 	/* 0xFF */ OPCODE(           "SET 7,A",  8),
 };
+
+#undef OPCODE
