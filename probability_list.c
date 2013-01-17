@@ -30,6 +30,9 @@ bool pl_add(prob_list_t *pl, uint16_t value)
 
 bool pl_check(const prob_list_t *pl, uint16_t value)
 {
+    if (pl->bloom_filter == 0)
+        return false;
+    
     uint32_t hash1, hash2;
     
     MurmurHash3_x86_32((const void*)&value, 2, SEED1, (void*)&hash1);
