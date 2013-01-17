@@ -22,6 +22,8 @@ struct gfx_opaque_t
     // Current state.
     gfx_state_t  state;
     
+    bool frame_rendered;
+    
     SDL_Surface *screen;
     SDL_Surface *sprites_bg;
     SDL_Surface *sprites_fg;

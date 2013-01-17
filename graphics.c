@@ -215,21 +215,7 @@ void graphics_update(context_t *ctx, int cycles)
                 {
                     *r_ly = 0;
                     _set_mode(ctx, OAM);
-                    
-                    // At this point a screen has been completely
-                    // drawn, the vbank period has elapsed, and the
-                    // GB is about to start drawing a new frame.
-                    // Limit the speed at which we draw to GB's 59.sth
-                    // fps.
-                    if (SDL_GetTicks() < ctx->next_run) {
-                        unsigned int delay_by;
-                        
-                        delay_by = ctx->next_run - SDL_GetTicks();
-                        SDL_Delay(delay_by);
-                    }
-                    
-                    // TODO: This does overflow at some point.
-                    ctx->next_run += (int)TICKS_PER_FRAME;
+                    gfx->frame_rendered = true;
                 }
             }
             break;

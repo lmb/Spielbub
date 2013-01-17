@@ -23,6 +23,15 @@ typedef struct gfx_opaque_t gfx_t;
 struct timers_opaque_t;
 typedef struct timers_opaque_t timers_t;
 
+typedef enum {
+    // Usually means that a breakpoint has been hit.
+    STOPPED = 0,
+    // Only execute one instruction at a time.
+    SINGLE_STEPPING,
+    // Emulation runs until program is quit or breakpoint etc. is hit.
+    RUNNING
+} emulation_state_t;
+
 typedef struct {
     // CPU
     cpu_t *cpu;
@@ -48,6 +57,8 @@ typedef struct {
     
     // IPC context
     ipc_t* ipc;
+    
+    emulation_state_t state;
 
 #if defined(DEBUG)
     circular_buffer* trace;

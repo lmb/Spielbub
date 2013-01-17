@@ -103,34 +103,33 @@ void run(context_t *context)
     SDL_Event event;
     
     context->next_run = SDL_GetTicks() + (int)TICKS_PER_FRAME;
+    context->state = RUNNING;
 
     for (;;)
     {
-        do {
+        while (!context->gfx->frame_rendered && context->state != STOPPED) {
             int cycles;
             
             if (context->cpu->halted)
-                // ???
                 cycles = 4;
             else
                 cycles = cpu_run(context);
             
-            // Update the global cycle count
-            context->cpu->cycles += cycles;
-            
             // Update graphics, timers, etc.
             timers_update(context, cycles);
             graphics_update(context, cycles);
-            ipc_update(context->ipc);
             joypad_update(context);
             
             if (context->cpu->IME) // Interrupt Master Enable
                 cpu_interrupts(context);
             
-        } while(context->cpu->cycles < CYCLES_PER_FRAME);
+            if (context->state == SINGLE_STEPPING)
+            {
+                context->state = STOPPED;
+            }
+        }
         
-        // We might overrun our budget by a few cycles.
-        context->cpu->cycles -= (int)CYCLES_PER_FRAME;
+        ipc_update(context);
 
         while (SDL_PollEvent(&event))
         {
@@ -151,6 +150,24 @@ void run(context_t *context)
             }
         }
         
-        
+        if (context->gfx->frame_rendered)
+        {
+            context->gfx->frame_rendered = false;
+            
+            // At this point a screen has been completely
+            // drawn, the vbank period has elapsed, and the
+            // GB is about to start drawing a new frame.
+            // Limit the speed at which we draw to GB's 59.sth
+            // fps.
+            if (SDL_GetTicks() < context->next_run) {
+                unsigned int delay_by;
+                
+                delay_by = context->next_run - SDL_GetTicks();
+                SDL_Delay(delay_by);
+            }
+            
+            // TODO: This does overflow at some point.
+            context->next_run += (int)TICKS_PER_FRAME;
+        }
     }
 }
