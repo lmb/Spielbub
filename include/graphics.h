@@ -3,14 +3,14 @@
 
 #include <SDL/SDL_video.h>
 
-#include "context.h"
-#include "hardware.h"
+#include "spielbub.h"
+// #include "hardware.h"
 
 typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
 } gfx_state_t;
 
-struct gfx_opaque_t
+typedef struct gfx
 {
     // Number of cycles in the current state.
     int          cycles;
@@ -30,7 +30,7 @@ struct gfx_opaque_t
     SDL_Surface *background;
     
     uint32_t screen_white;
-};
+} gfx_t;
 
 // This is completely unportable.
 typedef union {
@@ -62,8 +62,8 @@ typedef struct {
 } sprite_table_t;
 
 bool graphics_init(gfx_t *gfx);
-bool graphics_lock(gfx_t *gfx);
-void graphics_unlock(gfx_t *gfx);
+bool graphics_lock(context_t *ctx);
+void graphics_unlock(context_t *ctx);
 void graphics_update(context_t *ctx, int cycles);
 // TODO: Const this?
 //void grapics_debug_tiles(context_t *context);

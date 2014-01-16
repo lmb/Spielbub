@@ -2,8 +2,9 @@
 #define __CPU_H__
 
 #include <stdbool.h>
+
+#include "spielbub.h"
 #include "hardware.h"
-#include "context.h"
 
 #if defined(DEBUG)
 #include "probability_list.h"
@@ -14,7 +15,7 @@ typedef enum {
     I_VBLANK = 0x0, I_LCDC, I_TIMER, I_SERIAL_IO, I_JOYPAD
 } interrupt_t;
 
-struct cpu_opaque_t {
+typedef struct cpu {
     union {
         struct {
             uint16_t AF;
@@ -47,7 +48,7 @@ struct cpu_opaque_t {
     circular_buffer* trace;
     prob_list_t breakpoints;
 #endif
-};
+} cpu_t;
 
 void cpu_init(cpu_t *cpu);
 int cpu_run(context_t *context);
@@ -61,7 +62,7 @@ void cpu_interrupts(context_t *ctx);
 
 static inline void cpu_set_z(cpu_t *cpu, bool value)
 {
-    if (value) {
+    if (!value) {
         cpu->F |= 0x80;
     } else {
         cpu->F &= ~0x80;
@@ -70,7 +71,7 @@ static inline void cpu_set_z(cpu_t *cpu, bool value)
 
 static inline void cpu_set_n(cpu_t *cpu, bool value)
 {
-    if (!value) {
+    if (value) {
         cpu->F |= 0x40;
     } else {
         cpu->F &= ~0x40;
@@ -79,7 +80,7 @@ static inline void cpu_set_n(cpu_t *cpu, bool value)
 
 static inline void cpu_set_h(cpu_t *cpu, bool value)
 {
-    if (!value) {
+    if (value) {
         cpu->F |= 0x20;
     } else {
         cpu->F &= ~0x20;
@@ -88,7 +89,7 @@ static inline void cpu_set_h(cpu_t *cpu, bool value)
 
 static inline void cpu_set_c(cpu_t *cpu, bool value)
 {
-    if (!value) {
+    if (value) {
         cpu->F |= 0x10;
     } else {
         cpu->F &= ~0x10;

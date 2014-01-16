@@ -1,7 +1,7 @@
 #ifndef __JOYPAD_H__
 #define __JOYPAD_H__
 
-#include "context.h"
+#include "spielbub.h"
 
 #include <SDL/SDL.h>
 

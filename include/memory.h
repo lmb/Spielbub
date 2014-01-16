@@ -3,10 +3,12 @@
 
 #include <stdint.h>
 
-#include "context.h"
+#include "spielbub.h"
 #include "rom.h"
 
-typedef struct {
+typedef struct memory memory_t;
+
+typedef struct mbc {
     union {
         struct {
             // 0 = 16 MBit ROM/8 KByte RAM; 1 = 4 MBit ROM/32 KByte RAM
@@ -22,7 +24,7 @@ typedef struct {
 
 typedef void (*mem_ctrl_f)(memory_t*, int, uint8_t);
 
-struct memory_opaque_t {
+struct memory {
     // Current memory controller
     mem_ctrl_f controller;
 
@@ -67,7 +69,7 @@ void mem_init(memory_t*);
 void mem_init_debug(memory_t *mem);
 void mem_destroy(memory_t*);
 
-bool mem_load_rom(memory_t*, char *filename);
+bool mem_load_rom(memory_t*, const char *filename);
 uint16_t mem_read16(const memory_t *mem, uint16_t addr);
 void mem_write16(memory_t *mem, uint16_t addr, uint16_t value);
 void mem_write(memory_t*, uint16_t addr, uint8_t value);

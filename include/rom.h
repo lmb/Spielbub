@@ -20,6 +20,6 @@ typedef struct {
 	uint8_t checksum[2];
 } rom_meta;
 
-uint8_t* rom_load(rom_meta* meta, char* filename);
+uint8_t* rom_load(rom_meta* meta, const char* filename);
 
 #endif//__ROM_H__

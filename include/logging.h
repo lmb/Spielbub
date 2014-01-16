@@ -1,18 +1,17 @@
 #ifndef __LOGGING_H__
 #define __LOGGING_H__
 
-#include <stdarg.h>
-#include <stdbool.h>
+#include "spielbub.h"
 
 #define LOG_NUM (10)
 #define LOG_LEN (256)
 
-#define log_dbg(x, ...) _log(x, ##__VA_ARGS__)
-void _log(const char* str, ...);
+#if defined(DEBUG)
+#define log_dbg(ctx, msg, ...) context_log(ctx, msg, ##__VA_ARGS__)
+#else
+#define log_dbg(ctx, msg, ...)
+#endif
 
-void log_init( );
-void log_destroy( );
-void log_reset( );
-bool log_read(char* dst);
+void context_log(context_t *ctx, const char* str, ...);
 
 #endif//__LOGGING_H__

@@ -1,12 +1,11 @@
-#include "graphics.h"
-#include "ioregs.h"
-#include "memory.h"
-#include "cpu.h"
-#include "hardware.h"
-#include "logging.h"
-
 #include <assert.h>
 #include <SDL/SDL.h>
+
+#include "context.h"
+
+#include "ioregs.h"
+#include "hardware.h"
+#include "logging.h"
 
 #define MAP_W (256)
 #define MAP_H (256)
@@ -38,12 +37,12 @@ void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite);
  */
 void _set_mode(context_t *ctx, gfx_state_t state)
 {
-    ctx->gfx->state = state;
+    ctx->gfx.state = state;
 
-    ctx->mem->map[R_STAT] &= ~0x3;  // Clear bits 0-1
-    ctx->mem->map[R_STAT] |= state; // Set new state
+    ctx->mem.map[R_STAT] &= ~0x3;  // Clear bits 0-1
+    ctx->mem.map[R_STAT] |= state; // Set new state
 
-    if (state < 3 && BIT_ISSET(ctx->mem->map[R_STAT], state + 3))
+    if (state < 3 && BIT_ISSET(ctx->mem.map[R_STAT], state + 3))
         cpu_irq(ctx, I_LCDC);
 }
 
@@ -67,6 +66,13 @@ bool graphics_init(gfx_t* gfx)
 {
     gfx->state = OAM;
 
+    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    {
+        return false;
+    }
+
+    atexit(SDL_Quit);
+
     gfx->screen = SDL_SetVideoMode(
         SCREEN_W, SCREEN_H, 32 /*BPP*/,
         SDL_SWSURFACE
@@ -89,22 +95,22 @@ bool graphics_init(gfx_t* gfx)
     return (gfx->screen != NULL);
 }
 
-bool graphics_lock(gfx_t *gfx)
+bool graphics_lock(context_t *ctx)
 {
-    if (SDL_MUSTLOCK(gfx->screen) && SDL_LockSurface(gfx->screen) < 0)
+    if (SDL_MUSTLOCK(ctx->gfx.screen) && SDL_LockSurface(ctx->gfx.screen) < 0)
     {
-        log_dbg("Can not lock surface: %s", SDL_GetError());
+        log_dbg(ctx, "Can not lock surface: %s", SDL_GetError());
         return false;
     }
     
     return true;
 }
 
-void graphics_unlock(gfx_t *gfx)
+void graphics_unlock(context_t *ctx)
 {
-    if (SDL_MUSTLOCK(gfx->screen))
+    if (SDL_MUSTLOCK(ctx->gfx.screen))
     {
-        SDL_UnlockSurface(gfx->screen);
+        SDL_UnlockSurface(ctx->gfx.screen);
     }
 }
 
@@ -118,26 +124,26 @@ void graphics_update(context_t *ctx, int cycles)
     // amount of cycles is reached, state transitions
     // to TRANSF, etc.
 
-    uint8_t* r_stat = &ctx->mem->map[R_STAT];
+    uint8_t* r_stat = &ctx->mem.map[R_STAT];
 
-    if (!BIT_ISSET(ctx->mem->map[R_LCDC], R_LCDC_ENABLED))
+    if (!BIT_ISSET(ctx->mem.map[R_LCDC], R_LCDC_ENABLED))
     {
         // LCD is disabled.
-        mem_write(ctx->mem, R_LY, 144);
-        ctx->gfx->state = VBLANK_WAIT;
-        ctx->gfx->cycles = 0;
+        mem_write(&ctx->mem, R_LY, 144);
+        ctx->gfx.state = VBLANK_WAIT;
+        ctx->gfx.cycles = 0;
 
         return;
     }
     
-    gfx_t *gfx = ctx->gfx;
+    gfx_t *gfx = &ctx->gfx;
 
     gfx->cycles += cycles;
     switch (gfx->state)
     {
         case OAM:
             gfx->state = OAM_WAIT;
-            if (ctx->mem->map[R_LY] == ctx->mem->map[R_LYC])
+            if (ctx->mem.map[R_LY] == ctx->mem.map[R_LYC])
             {
                 // LY coincidence interrupt
                 // The LCD just finished displaying a
@@ -174,7 +180,7 @@ void graphics_update(context_t *ctx, int cycles)
             if (gfx->cycles >= 204)
             {
                 gfx->cycles -= 204;
-                if (ctx->mem->map[R_LY] == 144)
+                if (ctx->mem.map[R_LY] == 144)
                 {
                     _set_mode(ctx, VBLANK);
                 }
@@ -209,7 +215,7 @@ void graphics_update(context_t *ctx, int cycles)
         case VBLANK_WAIT:
             if (gfx->cycles >= 456)
             {
-                uint8_t* r_ly = &ctx->mem->map[R_LY];
+                uint8_t* r_ly = &ctx->mem.map[R_LY];
                 gfx->cycles -= 456;
                 
                 if ((*r_ly)++ == 153)
@@ -236,14 +242,14 @@ void graphics_update(context_t *ctx, int cycles)
 //    SDL_Rect r;
 //    r.x = r.y = 0;
 //    r.w = r.h = 256;
-//    SDL_FillRect(ctx->gfx->screen, &r, SDL_MapRGB(ctx->gfx->screen->format, 255, 0, 255));
+//    SDL_FillRect(ctx->gfx.screen, &r, SDL_MapRGB(ctx->gfx.screen->format, 255, 0, 255));
 //
 //    for (i = 0; i < 384; i++)
 //    {
 //        _put_tile(ctx->gfx, data + (i * 16), palette, (i % 16) * 8, (i / 16) * 8);
 //    }
 //
-//    SDL_Flip(ctx->gfx->screen);
+//    SDL_Flip(ctx->gfx.screen);
 //}
 
 //void _put_tile(const gfx_t *gfx, uint8_t* data, uint8_t palette, int x, int y)
@@ -335,11 +341,11 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
         int bg_x   = (screen_x + offset_x) % MAP_W;
         int tile_x = bg_x % 8;
         
-        uint8_t tile_id = _get_tile_id(ctx->mem, bg_x, bg_y, tile_map);
-        uint16_t tile = _get_tile_data(ctx->mem, tile_id, tile_data);
+        uint8_t tile_id = _get_tile_id(&ctx->mem, bg_x, bg_y, tile_map);
+        uint16_t tile = _get_tile_data(&ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
-        screen_x += _put_tile_line(ctx->gfx->background, tile, palette, screen_x, screen_y, tile_x, tile_y, false);
+        screen_x += _put_tile_line(ctx->gfx.background, tile, palette, screen_x, screen_y, tile_x, tile_y, false);
     }
 }
 
@@ -355,14 +361,14 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
         return;
     }
     
-    surface = BIT_ISSET(sprite.flags, SPRITE_F_TRANSLUCENT) ? ctx->gfx->sprites_bg : ctx->gfx->sprites_fg;
+    surface = BIT_ISSET(sprite.flags, SPRITE_F_TRANSLUCENT) ? ctx->gfx.sprites_bg : ctx->gfx.sprites_fg;
     
     uint16_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
-    palette = ctx->mem->map[palette];
+    palette = ctx->mem.map[palette];
     
     int sprite_x = BIT_ISSET(sprite.flags, SPRITE_F_X_FLIP) ? -7 : 0;
     
-    uint16_t tile = _get_tile_data(ctx->mem, sprite.tile_id, TILE_DATA_LOW);
+    uint16_t tile = _get_tile_data(&ctx->mem, sprite.tile_id, TILE_DATA_LOW);
     
     _put_tile_line(surface, tile, palette,
         screen_x, screen_y, sprite_x, sprite_y, true);
@@ -374,14 +380,14 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
  */
 void _draw_line(context_t *ctx) {
     // LCD control
-    uint8_t r_lcdc = ctx->mem->map[R_LCDC];
-    uint8_t palette = ctx->mem->map[R_BGP];
+    uint8_t r_lcdc = ctx->mem.map[R_LCDC];
+    uint8_t palette = ctx->mem.map[R_BGP];
     
-    uint8_t screen_y = ctx->mem->map[R_LY];
+    uint8_t screen_y = ctx->mem.map[R_LY];
     
     tile_data_t tile_data = BIT_ISSET(r_lcdc, R_LCDC_TILE_DATA) ? TILE_DATA_LOW : TILE_DATA_HIGH;
     
-    if (!graphics_lock(ctx->gfx))
+    if (!graphics_lock(ctx))
     {
         printf("_draw_line(): could not lock SDL surface\n");
         return;
@@ -390,8 +396,8 @@ void _draw_line(context_t *ctx) {
     // Background
     if (BIT_ISSET(r_lcdc, R_LCDC_BG_ENABLED))
     {
-        uint8_t r_scx  = ctx->mem->map[R_SCX];
-        uint8_t r_scy  = ctx->mem->map[R_SCY];
+        uint8_t r_scx  = ctx->mem.map[R_SCX];
+        uint8_t r_scy  = ctx->mem.map[R_SCY];
         
         tile_map_t bg_tile_map = !BIT_ISSET(r_lcdc, R_LCDC_BG_TILE_MAP) ?
             TILE_MAP_LOW : TILE_MAP_HIGH;
@@ -405,8 +411,8 @@ void _draw_line(context_t *ctx) {
     }
     
     // Window
-    uint8_t r_wy = ctx->mem->map[R_WY];
-    uint8_t r_wx = ctx->mem->map[R_WX] - 7;
+    uint8_t r_wy = ctx->mem.map[R_WY];
+    uint8_t r_wx = ctx->mem.map[R_WX] - 7;
     
     if (BIT_ISSET(r_lcdc, R_LCDC_WINDOW_ENABLED) && screen_y >= r_wy &&
         r_wx <= SCREEN_W - 1)
@@ -417,11 +423,11 @@ void _draw_line(context_t *ctx) {
         _draw_bg_line(
             ctx,
             r_wx, screen_y,
-            0, ctx->gfx->window_y,
+            0, ctx->gfx.window_y,
             palette, window_tile_map, tile_data
         );
 
-        ctx->gfx->window_y += 1;
+        ctx->gfx.window_y += 1;
     }
     
     // Sprites
@@ -431,7 +437,7 @@ void _draw_line(context_t *ctx) {
         
         int i;
         sprite_table_t sprites = { .length = 0 };
-        sprite_t *oam = (sprite_t*)&ctx->mem->map[OAM_START];
+        sprite_t *oam = (sprite_t*)&ctx->mem.map[OAM_START];
         
         for (i = 0; i < OAM_ENTRIES; i++)
         {
@@ -460,9 +466,9 @@ void _draw_line(context_t *ctx) {
         }
     }
 
-    graphics_unlock(ctx->gfx);
+    graphics_unlock(ctx);
 
-    mem_write(ctx->mem, R_LY, screen_y + 1);
+    mem_write(&ctx->mem, R_LY, screen_y + 1);
 }
 
 void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite)

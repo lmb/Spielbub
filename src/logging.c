@@ -1,31 +1,10 @@
-#include "logging.h"
-#include "buffers.h"
-
 #include <stdio.h>
 
-circular_buffer* log_buffer;
+#include "context.h"
 
-void log_init()
-{
-    log_buffer = cb_init(LOG_NUM, LOG_LEN);
-}
+#include "logging.h"
 
-void log_destroy()
-{
-    cb_destroy(log_buffer);
-}
-
-void log_reset()
-{
-    cb_reset(log_buffer);
-}
-
-bool log_read(char* dst)
-{
-    return cb_read(log_buffer, (uint8_t*)dst);
-}
-
-void _log(const char* str, ...)
+void context_log(context_t *ctx, const char* str, ...)
 {
     char tmp[LOG_LEN];
     va_list va;
@@ -36,5 +15,5 @@ void _log(const char* str, ...)
     vsnprintf(tmp, LOG_LEN-1, str, va);
     va_end(va);
 
-    cb_write_string(log_buffer, tmp);
+    cb_write_string(ctx->logs, tmp);
 }

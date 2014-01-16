@@ -4,19 +4,16 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-struct cpu_opaque_t;
-typedef struct cpu_opaque_t cpu_t;
+#include "spielbub.h"
 
-struct memory_opaque_t;
-typedef struct memory_opaque_t memory_t;
+#include "cpu.h"
+#include "memory.h"
+#include "graphics.h"
+#include "timers.h"
 
-struct gfx_opaque_t;
-typedef struct gfx_opaque_t gfx_t;
+#include "buffers.h"
 
-struct timers_opaque_t;
-typedef struct timers_opaque_t timers_t;
-
-typedef enum {
+typedef enum emulation_state {
     // Usually means that a breakpoint has been hit.
     STOPPED = 0,
     // Only execute one instruction at a time.
@@ -25,18 +22,18 @@ typedef enum {
     RUNNING
 } emulation_state_t;
 
-typedef struct {
+struct context {
     // CPU
-    cpu_t *cpu;
+    cpu_t cpu;
     
     // Memory
-    memory_t *mem;
+    memory_t mem;
 
     // Timer
-    timers_t *timers;
+    timers_t timers;
 
     // Graphics
-    gfx_t *gfx;
+    gfx_t gfx;
 
     // Point in time of the next run,
     // in ticks. Used to slow down
@@ -49,11 +46,12 @@ typedef struct {
     uint8_t joypad_state;
     
     emulation_state_t state;
-} context_t;
 
-bool context_create(context_t *ctx);
-bool context_init(context_t* ctx);
-void context_destroy(context_t *ctx);
-void context_run(context_t *context);
+#if defined(DEBUG)
+    circular_buffer* logs;
+#endif
+};
+
+bool context_init_minimal(context_t *ctx);
 
 #endif//__CONTEXT_H__

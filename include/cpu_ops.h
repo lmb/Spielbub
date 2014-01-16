@@ -1,8 +1,7 @@
 #ifndef __CPU_OPS_H__
 #define __CPU_OPS_H__
 
-#include "context.h"
-#include "cpu.h"
+#include "spielbub.h"
 #include <stdbool.h>
 #include <stdint.h>
 

@@ -1,17 +1,14 @@
-#include "cpu.h"
-#include "cpu_ops.h"
-#include "memory.h"
-#include "ioregs.h"
-#include "timers.h"
-#include "graphics.h"
-
-#include "logging.h"
-#include "meta.h"
-
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#include "context.h"
+
+#include "cpu_ops.h"
+#include "ioregs.h"
+#include "logging.h"
+#include "meta.h"
 
 void cpu_init(cpu_t* cpu)
 {
@@ -25,7 +22,11 @@ void cpu_init(cpu_t* cpu)
     cpu->IME = true;
 
 #if defined(DEBUG)
-    cpu->trace = cb_init(20, 2);
+    if (cpu->trace != NULL) {
+        cb_reset(cpu->trace);
+    } else {
+        cpu->trace = cb_init(20, 2);
+    }
 #endif
 }
 
@@ -35,7 +36,7 @@ void cpu_init(cpu_t* cpu)
 void cpu_irq(context_t *ctx, interrupt_t i)
 {
     // Set bit in IF
-    ctx->mem->map[R_IF] |= 1 << i;
+    ctx->mem.map[R_IF] |= 1 << i;
 }
 
 /*
@@ -44,9 +45,9 @@ void cpu_irq(context_t *ctx, interrupt_t i)
 void cpu_interrupts(context_t *ctx)
 {
     // Interrupt requests
-    const uint8_t r_if = ctx->mem->map[R_IF];
+    const uint8_t r_if = ctx->mem.map[R_IF];
     // Interrupt enable
-    const uint8_t r_ie = ctx->mem->map[R_IE];
+    const uint8_t r_ie = ctx->mem.map[R_IE];
 
     int i;
     for (i = 0; i < 5; i++)
@@ -57,26 +58,26 @@ void cpu_interrupts(context_t *ctx)
         {
             // Interrupt is requested and user
             // code is interested in it.
-            ctx->cpu->IME    = false;
-            ctx->cpu->halted = false;
+            ctx->cpu.IME    = false;
+            ctx->cpu.halted = false;
             
             // TODO: Jumping to an ISR possibly consumes 5 cycles
             
             // Clear the interrupt from the interrupt
             // request register.
-            ctx->mem->map[R_IF] &= ~mask;
+            ctx->mem.map[R_IF] &= ~mask;
 
             // Push the current program counter onto the stack
-            _push(ctx, ctx->cpu->PC);
+            _push(ctx, ctx->cpu.PC);
 
             // Select the appropriate ISR
             switch (i)
             {
-                case I_VBLANK:    ctx->cpu->PC = 0x40; break;
-                case I_LCDC:      ctx->cpu->PC = 0x48; break;
-                case I_TIMER:     ctx->cpu->PC = 0x50; break;
-                case I_SERIAL_IO: ctx->cpu->PC = 0x58; break;
-                case I_JOYPAD:    ctx->cpu->PC = 0x60; break;
+                case I_VBLANK:    ctx->cpu.PC = 0x40; break;
+                case I_LCDC:      ctx->cpu.PC = 0x48; break;
+                case I_TIMER:     ctx->cpu.PC = 0x50; break;
+                case I_SERIAL_IO: ctx->cpu.PC = 0x58; break;
+                case I_JOYPAD:    ctx->cpu.PC = 0x60; break;
             }
 
             return;
@@ -89,8 +90,8 @@ void cpu_interrupts(context_t *ctx)
  */
 int cpu_run(context_t *ctx)
 {
-    memory_t *mem = ctx->mem;
-    cpu_t *cpu = ctx->cpu;
+    memory_t *mem = &ctx->mem;
+    cpu_t *cpu = &ctx->cpu;
 
     unsigned int value = 0;
     unsigned int opcode;
@@ -341,17 +342,17 @@ int cpu_run(context_t *ctx)
         case 0x2E: cpu->L = mem->map[cpu->PC++]; break;
 
         // LD (HL), r
-        case 0x70: mem_write(ctx->mem, cpu->HL, cpu->B); break;
-        case 0x71: mem_write(ctx->mem, cpu->HL, cpu->C); break;
-        case 0x72: mem_write(ctx->mem, cpu->HL, cpu->D); break;
-        case 0x73: mem_write(ctx->mem, cpu->HL, cpu->E); break;
-        case 0x74: mem_write(ctx->mem, cpu->HL, cpu->H); break;
-        case 0x75: mem_write(ctx->mem, cpu->HL, cpu->L); break;
+        case 0x70: mem_write(&ctx->mem, cpu->HL, cpu->B); break;
+        case 0x71: mem_write(&ctx->mem, cpu->HL, cpu->C); break;
+        case 0x72: mem_write(&ctx->mem, cpu->HL, cpu->D); break;
+        case 0x73: mem_write(&ctx->mem, cpu->HL, cpu->E); break;
+        case 0x74: mem_write(&ctx->mem, cpu->HL, cpu->H); break;
+        case 0x75: mem_write(&ctx->mem, cpu->HL, cpu->L); break;
         // 0x76: HALT
-        case 0x77: mem_write(ctx->mem, cpu->HL, cpu->A); break;
+        case 0x77: mem_write(&ctx->mem, cpu->HL, cpu->A); break;
 
         // LD (HL), n
-        case 0x36: mem_write(ctx->mem, cpu->HL, mem->map[cpu->PC++]); break;
+        case 0x36: mem_write(&ctx->mem, cpu->HL, mem->map[cpu->PC++]); break;
 
         // LD A, r
         case 0x78: cpu->A = cpu->B; break;
@@ -407,12 +408,12 @@ int cpu_run(context_t *ctx)
 
         // LD (BC), A
         case 0x02:
-            mem_write(ctx->mem, cpu->BC, cpu->A);
+            mem_write(&ctx->mem, cpu->BC, cpu->A);
             break;
 
         // LD (DE), A
         case 0x12:
-            mem_write(ctx->mem, cpu->DE, cpu->A);
+            mem_write(&ctx->mem, cpu->DE, cpu->A);
             break;
 
         // LD (nn), A
@@ -420,28 +421,28 @@ int cpu_run(context_t *ctx)
             const uint16_t addr = mem_read16(mem, cpu->PC);
             cpu->PC += 2;
 
-            mem_write(ctx->mem, addr, cpu->A);
+            mem_write(&ctx->mem, addr, cpu->A);
             break;
         }
 
         // LD (0xFF00+C), A
         case 0xE2:
-            mem_write(ctx->mem, 0xFF00 + cpu->C, cpu->A);
+            mem_write(&ctx->mem, 0xFF00 + cpu->C, cpu->A);
             break;
 
         // LDD (HL), A
         case 0x32:
-            mem_write(ctx->mem, cpu->HL--, cpu->A);
+            mem_write(&ctx->mem, cpu->HL--, cpu->A);
             break;
 
         // LDI (HL), A
         case 0x22:
-            mem_write(ctx->mem, cpu->HL++, cpu->A);
+            mem_write(&ctx->mem, cpu->HL++, cpu->A);
             break;
 
         // LDH (0xFF00 + n), A
         case 0xE0:
-            mem_write(ctx->mem, 0xFF00 + mem->map[cpu->PC++], cpu->A);
+            mem_write(&ctx->mem, 0xFF00 + mem->map[cpu->PC++], cpu->A);
             break;
 
         // ___ 16bit loads ________________________
@@ -1204,7 +1205,7 @@ int cpu_run(context_t *ctx)
 
         default:
             printf("FATAL: unhandled opcode 0x%02X at %X\n", opcode, cpu->PC);
-            ctx->cpu->halted = true;
+            ctx->cpu.halted = true;
             goto exit_loop;
     }
 

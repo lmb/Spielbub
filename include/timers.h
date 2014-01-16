@@ -1,12 +1,12 @@
 #ifndef __TIMERS_H__
 #define __TIMERS_H__
 
-#include "context.h"
+#include "spielbub.h"
 
-struct timers_opaque_t {
+typedef struct timers {
     unsigned int divider_cycles;
     unsigned int timer_cycles;
-};
+} timers_t;
 
 void timers_update(context_t *ctx, int cycles);
 

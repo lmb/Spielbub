@@ -1,8 +1,7 @@
+#include "context.h"
 #include "joypad.h"
 
-#include "cpu.h"
 #include "ioregs.h"
-#include "memory.h"
 
 #define JOY_DOWN   SDLK_s
 #define JOY_UP     SDLK_w
@@ -13,7 +12,7 @@
 #define JOY_A      SDLK_k
 #define JOY_B      SDLK_l
 
-SDLKey const keys[] = {
+static const SDLKey keys[] = {
     JOY_A, JOY_B, JOY_SELECT, JOY_START,
     JOY_RIGHT, JOY_LEFT, JOY_UP, JOY_DOWN
 };
@@ -36,7 +35,7 @@ void joypad_init(context_t *ctx)
 
 void joypad_update(context_t *ctx)
 {
-    uint8_t *r_joypad = &ctx->mem->map[R_JOYPAD];
+    uint8_t *r_joypad = &ctx->mem.map[R_JOYPAD];
     uint8_t joy_state;
     
     // Active low

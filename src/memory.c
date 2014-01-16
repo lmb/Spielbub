@@ -1,9 +1,4 @@
-#include "memory.h"
-#include "rom.h"
-#include "ioregs.h"
-#include "joypad.h"
 
-#include "logging.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -11,11 +6,12 @@
 #include <stdbool.h>
 #include <assert.h>
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+#include "context.h"
 
-// bank = addr / 0x2000, offset = addr % 0x2000
-#define ADDR_TO_BANK_OFFSET(x) int bank = (x) / 0x2000; \
-    int offset = (x) % 0x2000
+#include "ioregs.h"
+#include "logging.h"
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // Type 1
 void mbc1_init();
@@ -92,7 +88,7 @@ void mem_init(memory_t *mem)
     // Initialize IO registers.
     mem_write_ioregs(mem, ioregs_init);
     // Disable all interrupts.
-    mem_write(mem, R_IE, 0);
+    mem->map[R_IE] = 0;
 }
 
 void mem_init_debug(memory_t *mem)
@@ -105,35 +101,32 @@ void mem_init_debug(memory_t *mem)
 
 void mem_destroy(memory_t *mem)
 {
-	if (mem->rom != NULL)
-		free(mem->rom);
+    if (mem->rom != NULL) {
+        free(mem->rom);
+    }
 }
 
-bool mem_load_rom(memory_t *mem, char *filename)
+bool mem_load_rom(memory_t *mem, const char *filename)
 {
     // TODO: Correct size?
-	memset(&(mem->meta), 0, sizeof(mem->meta));
+    memset(&(mem->meta), 0, sizeof(mem->meta));
     
-	if (mem->rom != NULL)
-		free(mem->rom);
+    if (mem->rom != NULL) {
+        free(mem->rom);
+    }
 
-	mem->rom = rom_load(&(mem->meta), filename);
+    mem->rom = rom_load(&(mem->meta), filename);
 
-	if (mem->rom == NULL)
-	{
-		log_dbg("Loading failed.\n");
-		return false;
-	}
+    if (mem->rom == NULL) {
+        return false;
+    }
 
     assert(mem->meta.cart_type < 0x02);
-    if (memory_controllers[mem->meta.cart_type].init != NULL)
-    {
+
+    if (memory_controllers[mem->meta.cart_type].init != NULL) {
         memory_controllers[mem->meta.cart_type].init(mem);
         mem->controller = memory_controllers[mem->meta.cart_type].handler;
-    }
-    else
-    {
-        printf("No suitable memory controller found!\n");
+    } else {
         return false;
     }
     
@@ -157,8 +150,7 @@ void mem_write16(memory_t *mem, uint16_t addr, uint16_t value)
 
 void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
 {
-    if (addr < 0x8000)
-    {
+    if (addr < 0x8000) {
         // This is ROM, forward to MBC
         if (mem->controller != NULL)
             mem->controller(mem, addr, value);
@@ -169,8 +161,7 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
 
     // Take care of special behaviour and
     // certain read-only registers.
-    switch (addr)
-    {
+    switch (addr) {
         case R_DIV:
             // Writing to the Divider Register resets it to zero,
             // regardless of value.

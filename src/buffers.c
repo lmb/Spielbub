@@ -1,10 +1,10 @@
-#include "buffers.h"
-#include "logging.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+
+#include "buffers.h"
+#include "logging.h"
 
 /*
  * Initialize a circular buffer. Returned pointer must
@@ -14,6 +14,11 @@
 circular_buffer* cb_init(size_t num, size_t len)
 {
     circular_buffer *buf = malloc(sizeof(circular_buffer) + num * len);
+    
+    if (buf == NULL) {
+        return NULL;
+    }
+
     memset(buf, 0, sizeof(circular_buffer) + num * len);
 
     buf->buffer = (uint8_t*)buf + sizeof(circular_buffer);
