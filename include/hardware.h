@@ -11,7 +11,7 @@
 #define TILE_HEIGHT (8)
 #define TILE_WIDTH (8)
 
-#define CYCLES_PER_FRAME 70886
+#define CYCLES_PER_FRAME (70886)
 #define TICKS_PER_FRAME (17)
 
 #endif//__HARDWARE_H__

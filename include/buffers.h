@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct {
     uint8_t* buffer;
@@ -13,7 +14,7 @@ typedef struct {
     bool wrapped;
 } circular_buffer;
 
-circular_buffer* cb_init(int num, int len);
+circular_buffer* cb_init(size_t num, size_t len);
 void cb_destroy(circular_buffer* buf);
 void cb_write(circular_buffer* buf, void* src);
 void cb_write_string(circular_buffer* buf, const char* src);

@@ -36,7 +36,7 @@ void joypad_init(context_t *ctx)
 
 void joypad_update(context_t *ctx)
 {
-    uint8_t *r_joypad = mem_address(ctx->mem, R_JOYPAD);
+    uint8_t *r_joypad = &ctx->mem->map[R_JOYPAD];
     uint8_t joy_state;
     
     // Active low

@@ -185,7 +185,7 @@
 }*/
 #endif
 
-int main(int argc, char **argv)
+int main(int argc, char* argv[])
 {
     context_t ctx;
 
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
     }
     atexit(SDL_Quit);
 
-    run(&ctx);
+    context_run(&ctx);
 
     context_destroy(&ctx);
     log_destroy();

@@ -11,23 +11,20 @@
  * be freed via cb_destroy(). Allocates room for <num> items
  * times <len> bytes.
  */
-circular_buffer* cb_init(int num, int len)
+circular_buffer* cb_init(size_t num, size_t len)
 {
-    circular_buffer *buf = malloc(sizeof(circular_buffer));
-    memset(buf, 0, sizeof(circular_buffer));
+    circular_buffer *buf = malloc(sizeof(circular_buffer) + num * len);
+    memset(buf, 0, sizeof(circular_buffer) + num * len);
 
-    buf->buffer = malloc(num * len);
-    memset(buf->buffer, 0, num * len);
-
-    buf->len     = len;
-    buf->num     = num;
+    buf->buffer = (uint8_t*)buf + sizeof(circular_buffer);
+    buf->len    = len;
+    buf->num    = num;
 
     return buf;
 }
 
 void cb_destroy(circular_buffer* buf)
 {
-    free(buf->buffer);
     free(buf);
 }
 

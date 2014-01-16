@@ -6,7 +6,6 @@
 #include "hardware.h"
 #include "timers.h"
 #include "joypad.h"
-#include "ipc.h"
 #include "memory.h"
 
 #include "logging.h"
@@ -22,9 +21,6 @@ bool context_create(context_t *ctx)
     ctx->cpu = malloc(sizeof(cpu_t));
     memset(ctx->cpu, 0, sizeof(cpu_t));
     
-    ctx->ipc = malloc(sizeof(ipc_t));
-    memset(ctx->ipc, 0, sizeof(ipc_t));
-    
     ctx->gfx = malloc(sizeof(gfx_t));
     memset(ctx->gfx, 0, sizeof(gfx_t));
     
@@ -33,7 +29,7 @@ bool context_create(context_t *ctx)
     
     ctx->timers = malloc(sizeof(timers_t));
     memset(ctx->timers, 0, sizeof(timers_t));
-    
+
     return true;
 }
 
@@ -55,14 +51,7 @@ bool context_init(context_t* ctx)
         printf("Failed graphics_init\n");
         return false;
     }
-    
-    // TODO: Check return code
-    if (!ipc_init(ctx->ipc))
-    {
-        printf("Failed ipc_init\n");
-        return false;
-    }
-    
+
     mem_init(ctx->mem);
     joypad_init(ctx);
 
@@ -75,12 +64,6 @@ void context_destroy(context_t *ctx)
     {
         if (ctx->cpu != NULL)
             free(ctx->cpu);
-        
-        if (ctx->ipc != NULL)
-        {
-            ipc_destroy(ctx->ipc);
-            free(ctx->ipc);
-        }
         
         if (ctx->gfx != NULL)
         {
@@ -98,38 +81,44 @@ void context_destroy(context_t *ctx)
 /*
  * This is the main emulation loop.
  */
-void run(context_t *context)
+void context_run(context_t *context)
 {
     SDL_Event event;
+    unsigned int cycles_frame = 0;
     
     context->next_run = SDL_GetTicks() + (int)TICKS_PER_FRAME;
     context->state = RUNNING;
 
     for (;;)
     {
-        while (!context->gfx->frame_rendered && context->state != STOPPED) {
+        while (cycles_frame < CYCLES_PER_FRAME && context->state != STOPPED) {
             int cycles;
-            
-            if (context->cpu->halted)
+
+            if (context->cpu->halted) {
                 cycles = 4;
-            else
+            } else {
                 cycles = cpu_run(context);
-            
+            }
+
+            cycles_frame += cycles;
+
             // Update graphics, timers, etc.
             timers_update(context, cycles);
             graphics_update(context, cycles);
             joypad_update(context);
             
-            if (context->cpu->IME) // Interrupt Master Enable
+            if (context->cpu->IME) {
+                // Interrupt Master Enable
                 cpu_interrupts(context);
+            }
             
             if (context->state == SINGLE_STEPPING)
             {
                 context->state = STOPPED;
             }
         }
-        
-        ipc_update(context);
+
+        cycles_frame -= CYCLES_PER_FRAME;
 
         while (SDL_PollEvent(&event))
         {

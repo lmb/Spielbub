@@ -8,7 +8,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <assert.h>
+
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 // bank = addr / 0x2000, offset = addr % 0x2000
 #define ADDR_TO_BANK_OFFSET(x) int bank = (x) / 0x2000; \
@@ -18,9 +21,11 @@
 void mbc1_init();
 void mbc1(memory_t*, int addr, uint8_t value);
 
+static void mem_write_ioregs(memory_t*, const uint8_t* data);
+
 // List of supported memory controllers.
-struct {
-    mem_ctrl_init_f init;
+static const struct {
+    void (*init)(memory_t*);
     mem_ctrl_f handler;
 } memory_controllers[] = {
     {0, 0},             // No memory controller
@@ -29,7 +34,7 @@ struct {
 
 // Initialization table for the IO registers,
 // located at 0xFF00+ in memory.
-uint8_t const ioregs_init[0x4C] = {
+static const uint8_t ioregs_init[0x4C] = {
     //  x0    x1    x2    x3    x4    x5    x6    x7    x8    x9    xA    xB    xC    xD    xE    xF
     0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, // 0x
     0x80, 0xBF, 0xF3,    0, 0xBF,    0, 0x3F,    0,    0, 0xBF, 0x7F, 0xFF, 0x9F,    0, 0xBF,    0, // 1x
@@ -38,17 +43,51 @@ uint8_t const ioregs_init[0x4C] = {
     0x91,    0,    0,    0,    0,    0,    0, 0xFC, 0xFF, 0xFF,    0,    0                          // 4x
 };
 
+static bool mem_map(memory_t *mem, int bank, uint8_t *src)
+{
+    const uint16_t addr = bank * 0x2000 + (bank == 4 ? 0x2000 : 0);
+
+    if (bank < 0 || bank > 4 || src == NULL) {
+        return false;
+    }
+
+    if (mem->banks[bank] != NULL) {
+        if (mem->banks[bank] == src) {
+            return true;
+        }
+
+        memcpy(mem->banks[bank], &mem->map[addr], 0x2000);
+    }
+
+    memcpy(&mem->map[addr], src, 0x2000);
+    mem->banks[bank] = src;
+
+    return true;
+}
+
+static bool mem_map_many(memory_t *mem, const int bank, const size_t num,
+    uint8_t* src)
+{
+    int i, j;
+
+    for (i = bank, j = 0; i < bank + num; i++, j++) {
+        if (!mem_map(mem, i, src + (j * 0x2000))) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void mem_init(memory_t *mem)
 {
     // TODO: Does this even set all items to NULL?
-	memset(mem->map, 0, sizeof(mem->map));
-	memset(mem->internal_ram, 0, sizeof(mem->internal_ram));
-    memset(mem->video_ram, 0, sizeof(mem->video_ram));
+    memset(mem->map, 0, sizeof(mem->map));
 
-	mem->map[4] = mem->video_ram;
-//  mem->map[5] = swappable memory bank
-	mem->map[6] = mem->internal_ram;
-	mem->map[7] = mem->internal_ram + 0x2000;
+    // mem->map[4] = mem->video_ram;
+    // mem->map[5] = swappable memory bank
+    // mem->map[6] = mem->internal_ram;
+    // mem->map[7] = mem->internal_ram + 0x2000;
     
     // Initialize IO registers.
     mem_write_ioregs(mem, ioregs_init);
@@ -60,21 +99,14 @@ void mem_init_debug(memory_t *mem)
 {
     mem_init(mem);
     mem->rom = malloc(5 * 0x2000);
-    
-    mem->map[0] = mem->rom;
-	mem->map[1] = mem->rom + 0x2000;
-	mem->map[2] = mem->rom + 0x4000;
-	mem->map[3] = mem->rom + 0x6000;
-    mem->map[5] = mem->rom + 0x8000;
+
+    mem_map_many(mem, 0, 5, mem->rom);
 }
 
 void mem_destroy(memory_t *mem)
 {
 	if (mem->rom != NULL)
 		free(mem->rom);
-
-    if (mem->ram != NULL)
-        free(mem->ram);
 }
 
 bool mem_load_rom(memory_t *mem, char *filename)
@@ -107,37 +139,24 @@ bool mem_load_rom(memory_t *mem, char *filename)
     
     // TODO: Check minimum number of banks?
 
-	mem->map[0] = mem->rom;
-	mem->map[1] = mem->rom + 0x2000;
-	mem->map[2] = mem->rom + 0x4000;
-	mem->map[3] = mem->rom + 0x6000;
-    
+    mem_map_many(mem, 0, 4, mem->rom);
+
     return true;
 }
 
-uint8_t mem_read(const memory_t* mem, register int addr)
+uint16_t mem_read16(const memory_t *mem, uint16_t addr)
 {
-	ADDR_TO_BANK_OFFSET(addr);
-    
-    assert(mem->map[bank] != NULL);
-    
-	return mem->map[bank][offset];
+    return mem->map[addr] | (mem->map[addr+1] << 8);
 }
 
-uint8_t* mem_address(const memory_t* mem , int addr)
+void mem_write16(memory_t *mem, uint16_t addr, uint16_t value)
 {
-	ADDR_TO_BANK_OFFSET(addr);
-    
-    assert(mem->map[bank] != NULL);
-    
-	return mem->map[bank] + offset;
+    mem->map[addr]   = value & 0xff;
+    mem->map[addr+1] = value >> 8;
 }
 
-void mem_write(memory_t *mem, int addr, uint8_t value)
+void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
 {
-    uint8_t *src, *dst;
-    ADDR_TO_BANK_OFFSET(addr);
-
     if (addr < 0x8000)
     {
         // This is ROM, forward to MBC
@@ -155,29 +174,24 @@ void mem_write(memory_t *mem, int addr, uint8_t value)
         case R_DIV:
             // Writing to the Divider Register resets it to zero,
             // regardless of value.
-            mem->map[bank][offset] = 0;
+            mem->map[addr] = 0;
             return;
 
         case R_DMA:
             // Do DMA transfer into OAM
-            src = mem_address(mem, value * 0x100);
-            dst = mem_address(mem, OAM_START);
-            memcpy((void*)dst, src, 0xA0);
+            memcpy(&mem->map[OAM_START], &mem->map[value * 0x100], 0xA0);
             return;
-
-        default:
-            // Put value into memory
-            mem->map[bank][offset] = value;
-            break;
     }
 
-	// Shadow RAM
-	if ((bank == 6 || bank == 7) && (offset < 0x1E00))
-	{
-		bank = (bank == 6) ? 7 : 6;
+    // Put value into memory
+    mem->map[addr] = value;
 
-		mem->map[bank][offset] = value;
-	}
+    // Shadow 0xC000-0xDDFF to 0xE000-0xFDFF
+    if (0xC000 <= addr && addr <= 0xDDFF) {
+        mem->map[addr + 0x2000] = value;
+    } else if (0xE000 <= addr && addr <= 0xFDFF) {
+        mem->map[addr - 0x2000] = value;
+    }
 }
 
 /*
@@ -186,18 +200,15 @@ void mem_write(memory_t *mem, int addr, uint8_t value)
 void mem_write_ioregs(memory_t *mem, const uint8_t* data)
 {
     assert(mem->map != NULL);
-    memcpy(mem->map[7] + 0x1F00, data, 0x4C);
+    memcpy(&mem->map[7] + 0x1F00, data, 0x4C);
 }
 
 // __ Memory bank controllers __________________
 
 void mbc1_init(memory_t *mem)
 {
-    assert(mem->mbc_state.mode == 0);
-    
-    // TODO: Check malloc
-    mem->ram = malloc(0x2000);
-    mem->map[5] = mem->ram;
+    assert(mem->mbc.type1.mode == 0);
+    mem_map(mem, 4, mem->mbc.type1.ram);
 }
 
 void mbc1(memory_t *mem, int addr, uint8_t value)
@@ -208,46 +219,33 @@ void mbc1(memory_t *mem, int addr, uint8_t value)
     if (addr >= 0x6000)
     {
         // Change addressing mode
-        if (mem->mbc_state.mode != (value & 1))
+        if (mem->mbc.type1.mode != (value & 1))
         {
-            if (mem->mbc_state.mode == 0)
-            {
-                // Switching to mode 1
-                mem->mbc_state.upper_rom_bits = 0;
-                mem->ram = realloc(mem->ram, 0x8000);
-            }
-            else
-            {
-                // Switching to mode 0
-                mem->ram = realloc(mem->ram, 0x2000);
-            }
-            
-            mem->mbc_state.mode = value & 1;
-            // TODO: Does this honor previous RAM bank settings?
-            mem->map[5] = mem->ram;
+            mem->mbc.type1.upper_rom_bits = 0;
+            mem->mbc.type1.mode = value & 1;
+
+            mem_map(mem, 4, mem->mbc.type1.ram);
         }
     }
     else if (addr >= 0x4000)
     {
-        // RAM bank switching
-        if (mem->mbc_state.mode == 0)
+        if (mem->mbc.type1.mode == 0)
         {
-            mem->mbc_state.upper_rom_bits = (value & 0x3) << 5;
+            mem->mbc.type1.upper_rom_bits = (value & 0x3) << 5;
         }
         else
         {
+            // RAM bank switching
             int bank = value & 0x3;
-            mem->map[5] = mem->ram + (bank * 0x2000);
+            mem_map(mem, 4, mem->mbc.type1.ram + (bank * 0x2000));
         }
     }
     else if (addr >= 0x2000)
     {
         // ROM bank switching
         int bank = (value & 0x1F);
-        if (bank == 0) bank = 1;
-        bank |= mem->mbc_state.upper_rom_bits;
-        
-        mem->map[2] = mem->rom + (bank * 0x4000);
-        mem->map[3] = mem->rom + (bank * 0x4000) + 0x2000;
+        bank = MIN(bank, 1) | mem->mbc.type1.upper_rom_bits;
+
+        mem_map_many(mem, 2, 2, mem->rom + (bank * 0x4000));
     }
 }
