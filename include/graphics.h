@@ -1,17 +1,16 @@
 #ifndef __GRAPHICS_H__
 #define __GRAPHICS_H__
 
-#include <SDL/SDL_video.h>
+#include <SDL2/SDL.h>
 
 #include "spielbub.h"
-// #include "hardware.h"
+#include "hardware.h"
 
 typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
 } gfx_state_t;
 
-typedef struct gfx
-{
+typedef struct gfx {
     // Number of cycles in the current state.
     int          cycles;
     
@@ -24,11 +23,17 @@ typedef struct gfx
     
     bool frame_rendered;
     
-    SDL_Surface *screen;
-    SDL_Surface *sprites_bg;
-    SDL_Surface *sprites_fg;
-    SDL_Surface *background;
-    
+    SDL_Window*   window;
+    SDL_Renderer* renderer;
+    SDL_Texture*  texture;
+
+    uint16_t palette[4];
+
+    SDL_Surface* screen;
+    SDL_Surface* sprites_bg;
+    SDL_Surface* sprites_fg;
+    SDL_Surface* background;
+
     uint32_t screen_white;
 } gfx_t;
 

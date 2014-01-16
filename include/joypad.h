@@ -3,7 +3,7 @@
 
 #include "spielbub.h"
 
-#include <SDL/SDL.h>
+#include <SDL2/SDL.h>
 
 void joypad_init(context_t *ctx);
 void joypad_update(context_t *ctx);

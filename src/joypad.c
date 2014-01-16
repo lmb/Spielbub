@@ -3,16 +3,16 @@
 
 #include "ioregs.h"
 
-#define JOY_DOWN   SDLK_s
-#define JOY_UP     SDLK_w
-#define JOY_LEFT   SDLK_a
-#define JOY_RIGHT  SDLK_d
-#define JOY_START  SDLK_i
-#define JOY_SELECT SDLK_o
-#define JOY_A      SDLK_k
-#define JOY_B      SDLK_l
+#define JOY_DOWN   SDL_SCANCODE_S
+#define JOY_UP     SDL_SCANCODE_W
+#define JOY_LEFT   SDL_SCANCODE_A
+#define JOY_RIGHT  SDL_SCANCODE_D
+#define JOY_START  SDL_SCANCODE_I
+#define JOY_SELECT SDL_SCANCODE_O
+#define JOY_A      SDL_SCANCODE_K
+#define JOY_B      SDL_SCANCODE_L
 
-static const SDLKey keys[] = {
+static const SDL_Scancode keys[] = {
     JOY_A, JOY_B, JOY_SELECT, JOY_START,
     JOY_RIGHT, JOY_LEFT, JOY_UP, JOY_DOWN
 };
@@ -63,9 +63,9 @@ void joypad_update_state(context_t *ctx, const SDL_KeyboardEvent *evt)
     
     for (i = 0; i < 8; i++)
     {
-        SDLKey key = keys[i];
-        
-        if (evt->keysym.sym == key)
+        const SDL_Scancode key = keys[i];
+
+        if (evt->keysym.scancode == key)
         {
             if (evt->state == SDL_PRESSED)
             {

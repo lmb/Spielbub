@@ -24,7 +24,7 @@ solution "Spielbub"
       files { "src/runner/*.h", "src/runner/*.c" }
       links { "Spiellib" }
 
-      links { "SDLmain", "sdl" }
+      links { "sdl2" }
 
       if os.get() == "macosx" then
          links { "Cocoa.framework" }
@@ -36,7 +36,7 @@ solution "Spielbub"
       files { "src/tests/*.c" }
       links { "Spiellib", "check" }
 
-      links { "SDLmain", "sdl" }
+      links { "sdl2" }
 
       if os.get() == "macosx" then
          links { "Cocoa.framework" }

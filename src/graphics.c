@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <SDL/SDL.h>
 
 #include "context.h"
 
@@ -26,7 +25,7 @@ void _draw_line();
 void _put_pixel(uint32_t *screen_palette, uint32_t* buf, register uint8_t palette, register int x, register int data1, register int data2);
 
 uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map);
-uint16_t _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
+uint16_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data);
 
 // Sprite tables
 void _add_sprite_to_table(sprite_table_t *table, sprite_t sprite);
@@ -46,58 +45,107 @@ void _set_mode(context_t *ctx, gfx_state_t state)
         cpu_irq(ctx, I_LCDC);
 }
 
-SDL_Surface* _init_surface(SDL_Color *colors)
-{
-    SDL_Surface *sfc = SDL_CreateRGBSurface(
-        SDL_SWSURFACE | SDL_SRCCOLORKEY, SCREEN_W, SCREEN_H, 8, 0, 0, 0, 0);
-    
-    if (sfc == NULL) { return NULL; }
-    
-    SDL_SetColors(sfc, colors, 0, 4);
-    SDL_SetColorKey(sfc, SDL_SRCCOLORKEY, SDL_MapRGB(sfc->format, 0xFF, 0x00, 0xFF));
-    
-    return sfc;
-}
-
 /*
  * Inits the SDL surface and palette colors.
  */
 bool graphics_init(gfx_t* gfx)
 {
-    gfx->state = OAM;
+    memset(gfx, 0, sizeof *gfx);
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         return false;
     }
-
     atexit(SDL_Quit);
 
-    gfx->screen = SDL_SetVideoMode(
-        SCREEN_W, SCREEN_H, 32 /*BPP*/,
-        SDL_SWSURFACE
+    gfx->window = SDL_CreateWindow(
+        "Spielbub",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        SCREEN_W, SCREEN_H,
+        0
     );
 
-    // Transparent, Light Grey, Dark Grey, Black
-    SDL_Color colors[4] = {
-        { .r = 0xFF, .g = 0x00, .b = 0xFF },
-        { .r = 0xCC, .g = 0xCC, .b = 0xCC },
-        { .r = 0x77, .g = 0x77, .b = 0x77 },
-        { .r = 0x00, .g = 0x00, .b = 0x00 }
-    };
+    if (!gfx->window) {
+        goto error;
+    }
 
-    gfx->background = _init_surface(colors);
-    gfx->sprites_bg = _init_surface(colors);
-    gfx->sprites_fg = _init_surface(colors);
+    if ((gfx->renderer = SDL_CreateRenderer(gfx->window, -1, 0)) == NULL) {
+        goto error;
+    }
 
-    gfx->screen_white = SDL_MapRGB(gfx->screen->format, 0xFF, 0xFF, 0xFF);
+    gfx->texture = SDL_CreateTexture(
+        gfx->renderer,
+        SDL_PIXELFORMAT_ARGB4444,
+        SDL_TEXTUREACCESS_STREAMING,
+        SCREEN_W, SCREEN_H
+    );
 
-    return (gfx->screen != NULL);
+    if (!gfx->texture) {
+        goto error;
+    }
+
+#define INIT_SURFACE(x) do { \
+        x = SDL_CreateRGBSurface( \
+            0, SCREEN_W, SCREEN_H, 16, \
+            0x0F00, 0x00F0, 0x000F, 0xF000 \
+        ); \
+        if (x == NULL) { \
+            goto error; \
+        } \
+    } while(0)
+    INIT_SURFACE(gfx->screen);
+    INIT_SURFACE(gfx->background);
+    INIT_SURFACE(gfx->sprites_bg);
+    INIT_SURFACE(gfx->sprites_fg);
+#undef INIT_SURFACE
+
+    gfx->palette[0] = SDL_MapRGBA(gfx->screen->format, 0x00, 0x00, 0x00, 0x00);
+    gfx->palette[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
+    gfx->palette[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
+    gfx->palette[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+
+    gfx->screen_white = SDL_MapRGBA(gfx->screen->format, 0xFF, 0xFF, 0xFF, 0xFF);
+    gfx->state = OAM;
+
+    return true;
+
+    error: {
+        if (gfx->renderer != NULL) {
+            SDL_DestroyRenderer(gfx->renderer);
+        }
+
+        if (gfx->window != NULL) {
+            SDL_DestroyWindow(gfx->window);
+        }
+
+        if (gfx->texture != NULL) {
+            SDL_DestroyTexture(gfx->texture);
+        }
+
+        if (gfx->screen != NULL) {
+            SDL_FreeSurface(gfx->screen);
+        }
+
+        if (gfx->background != NULL) {
+            SDL_FreeSurface(gfx->background);
+        }
+
+        if (gfx->sprites_bg != NULL) {
+            SDL_FreeSurface(gfx->sprites_bg);
+        }
+
+        if (gfx->sprites_fg != NULL) {
+            SDL_FreeSurface(gfx->sprites_fg);
+        }
+
+        return false;
+    }
 }
 
 bool graphics_lock(context_t *ctx)
 {
-    if (SDL_MUSTLOCK(ctx->gfx.screen) && SDL_LockSurface(ctx->gfx.screen) < 0)
+    if (SDL_LockSurface(ctx->gfx.screen) < 0)
     {
         log_dbg(ctx, "Can not lock surface: %s", SDL_GetError());
         return false;
@@ -108,10 +156,7 @@ bool graphics_lock(context_t *ctx)
 
 void graphics_unlock(context_t *ctx)
 {
-    if (SDL_MUSTLOCK(ctx->gfx.screen))
-    {
-        SDL_UnlockSurface(ctx->gfx.screen);
-    }
+    SDL_UnlockSurface(ctx->gfx.screen);
 }
 
 /*
@@ -193,18 +238,21 @@ void graphics_update(context_t *ctx, int cycles)
 
         case VBLANK:
         {
-            //SDL_Rect whole_screen = { .x = 0, .y = 0, .w = SCREEN_W, .h = SCREEN_H };
-            
             SDL_FillRect(gfx->screen, NULL, gfx->screen_white);
             SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->screen, NULL);
             SDL_BlitSurface(gfx->background, NULL, gfx->screen, NULL);
             SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->screen, NULL);
             
-            SDL_Flip(gfx->screen);
+            SDL_UpdateTexture(gfx->texture, NULL, gfx->screen->pixels,
+                gfx->screen->pitch);
+            SDL_RenderClear(gfx->renderer);
+            SDL_RenderCopy(gfx->renderer, gfx->texture, NULL, NULL);
+            SDL_RenderPresent(gfx->renderer);
             
-            SDL_FillRect(gfx->sprites_bg, NULL, gfx->sprites_bg->format->colorkey);
-            SDL_FillRect(gfx->background, NULL, gfx->background->format->colorkey);
-            SDL_FillRect(gfx->sprites_fg, NULL, gfx->sprites_fg->format->colorkey);
+            // Make overlays transparent again
+            SDL_FillRect(gfx->sprites_bg, NULL, gfx->palette[0]);
+            SDL_FillRect(gfx->background, NULL, gfx->palette[0]);
+            SDL_FillRect(gfx->sprites_fg, NULL, gfx->palette[0]);
             
             cpu_irq(ctx, I_VBLANK);
             
@@ -280,14 +328,15 @@ void graphics_update(context_t *ctx, int cycles)
 //    }
 //}
 
-int _put_tile_line(SDL_Surface *screen, uint16_t tile, uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y, bool transparent)
+int _put_tile_line(const gfx_t *gfx, SDL_Surface *screen, const uint16_t* tile,
+    uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y,
+    bool transparent)
 {
     assert(screen_x < SCREEN_W);
     assert(screen_y < SCREEN_H);
     
-    int i;
-    int bpp = screen->format->BytesPerPixel;
-    uint8_t *pixels = (uint8_t*)(screen->pixels + (screen_y * screen->pitch) + (screen_x * bpp));
+    uint16_t* pixels = (uint16_t*)(screen->pixels + (screen_y + screen->pitch));
+    pixels += screen_x;
     
     tile += tile_y;
     
@@ -296,17 +345,17 @@ int _put_tile_line(SDL_Surface *screen, uint16_t tile, uint8_t palette, int scre
     if (tile_x < 0) {
         tile_x *= -1;
         step = -1;
-    }
-    else
-    {
+    } else {
         step = 1;
     }
     
-    for (i = tile_x; i >= 0 && i < TILE_WIDTH; i += step)
+    for (int i = tile_x; i >= 0 && i < TILE_WIDTH; i += step)
     {
-        if (screen_x + i >= SCREEN_W) { continue; }
+        if (screen_x + i >= SCREEN_W) {
+            continue;
+        }
         
-        int index = (tile) & (0x8080 >> i); // Get bit 16-i and 8-i
+        int index = (*tile) & (0x8080 >> i); // Get bit 16-i and 8-i
         index >>= 7 - i;                     // Right align
         index = index % 254;                 // Get rid of bits 7 to 1
         // index now holds a number between 0 and 3
@@ -316,7 +365,7 @@ int _put_tile_line(SDL_Surface *screen, uint16_t tile, uint8_t palette, int scre
         int color = ((palette & (0x3 << index)) >> index);
         
         if (color != 0 || !transparent) {
-            *pixels = color;
+            *pixels = gfx->palette[color];
         }
         pixels++;
     }
@@ -342,10 +391,11 @@ void _draw_bg_line(const context_t *ctx, int screen_x, int screen_y, int offset_
         int tile_x = bg_x % 8;
         
         uint8_t tile_id = _get_tile_id(&ctx->mem, bg_x, bg_y, tile_map);
-        uint16_t tile = _get_tile_data(&ctx->mem, tile_id, tile_data);
+        uint16_t* tile = _get_tile_data(&ctx->mem, tile_id, tile_data);
         
         // Every line is 2 bytes
-        screen_x += _put_tile_line(ctx->gfx.background, tile, palette, screen_x, screen_y, tile_x, tile_y, false);
+        screen_x += _put_tile_line(&ctx->gfx, ctx->gfx.background, tile, palette,
+            screen_x, screen_y, tile_x, tile_y, false);
     }
 }
 
@@ -368,10 +418,10 @@ void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
     
     int sprite_x = BIT_ISSET(sprite.flags, SPRITE_F_X_FLIP) ? -7 : 0;
     
-    uint16_t tile = _get_tile_data(&ctx->mem, sprite.tile_id, TILE_DATA_LOW);
+    uint16_t* tile = _get_tile_data(&ctx->mem, sprite.tile_id, TILE_DATA_LOW);
     
-    _put_tile_line(surface, tile, palette,
-        screen_x, screen_y, sprite_x, sprite_y, true);
+    _put_tile_line(&ctx->gfx, surface, tile, palette, screen_x, screen_y, sprite_x,
+        sprite_y, true);
 }
 
 /*
@@ -389,7 +439,6 @@ void _draw_line(context_t *ctx) {
     
     if (!graphics_lock(ctx))
     {
-        printf("_draw_line(): could not lock SDL surface\n");
         return;
     }
     
@@ -517,7 +566,7 @@ uint8_t _get_tile_id(const memory_t *mem, int x, int y, tile_map_t tile_map)
     return mem->map[tile_map + index];
 }
 
-uint16_t _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data)
+uint16_t* _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_data)
 {
     int tile_addr;
     
@@ -543,5 +592,6 @@ uint16_t _get_tile_data(const memory_t *mem, uint8_t tile_id, tile_data_t tile_d
             break;
     }
     
-    return mem_read16(mem, tile_data + (tile_addr + 16));
+    // This is guaranteed to be aligned
+    return (uint16_t*)&mem->map[(uint16_t)tile_data + (tile_addr * 16)];
 }
