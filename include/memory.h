@@ -5,6 +5,7 @@
 
 #include "spielbub.h"
 #include "rom.h"
+#include "hardware.h"
 
 typedef struct memory memory_t;
 
@@ -25,11 +26,8 @@ typedef struct mbc {
 typedef void (*mem_ctrl_f)(memory_t*, int, uint8_t);
 
 struct memory {
-    // Current memory controller
-    mem_ctrl_f controller;
-
     union {
-        uint8_t  map[8 * 0x2000];
+        uint8_t map[8 * 0x2000];
         struct {
             uint8_t __pad0[0xFF00];
             uint8_t JOYPAD; // 0xFF00
@@ -56,7 +54,19 @@ struct memory {
             uint8_t __pad4[0xB3];
             uint8_t IE;    // 0xFFFF
         } io;
+
+        struct {
+            uint8_t __pad0[0x8000];
+            uint8_t tiles[0x1800];
+            uint8_t map_low[MAP_ROWS][MAP_COLUMNS];
+            uint8_t map_high[MAP_ROWS][MAP_COLUMNS];
+            uint8_t __pad1[0x5E00];
+            uint8_t oam[OAM_ENTRIES][OAM_ENTRY_SIZE];
+        } gfx;
     };
+
+    // Current memory controller
+    mem_ctrl_f controller;
 
     uint8_t* banks[5];
     uint8_t* rom;

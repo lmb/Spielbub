@@ -10,6 +10,19 @@ typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
 } gfx_state_t;
 
+#define PIXEL_FORMAT SDL_PIXELFORMAT_ARGB4444
+typedef uint16_t pixel_t;
+
+typedef struct palette {
+    pixel_t colors[4];
+} palette_t;
+
+struct window {
+    SDL_Window*   window;
+    SDL_Renderer* renderer;
+    SDL_Texture*  texture;
+};
+
 typedef struct gfx {
     // Number of cycles in the current state.
     int          cycles;
@@ -23,11 +36,9 @@ typedef struct gfx {
     
     bool frame_rendered;
     
-    SDL_Window*   window;
-    SDL_Renderer* renderer;
-    SDL_Texture*  texture;
+    window_t window;
 
-    uint16_t palette[4];
+    palette_t palette;
 
     SDL_Surface* screen;
     SDL_Surface* sprites_bg;
@@ -37,29 +48,17 @@ typedef struct gfx {
     uint32_t screen_white;
 } gfx_t;
 
-// This is completely unportable.
-typedef union {
-    uint32_t raw;
-    
-    struct {
-        // X & Y Pos of the bottom right corner, for an 8x16 sprite
-        uint8_t y;
-        uint8_t x;
-        uint8_t tile_id;
-        uint8_t flags;
-    };
-    
-    // Clang doesn't support unnamed structs
-    // in designazed initializers.
-    struct {
-        uint8_t y, x, tile_id, flags;
-    } b;
-} sprite_t;
+typedef struct sprite {
+    size_t x, y;
 
-#define SPRITE_F_HIGH_PALETTE (4)
-#define SPRITE_F_X_FLIP (5)
-#define SPRITE_F_Y_FLIP (6)
-#define SPRITE_F_TRANSLUCENT (7)
+    bool visible;
+    bool in_background;
+    bool flip_x, flip_y;
+    enum { PALETTE_HIGH, PALETTE_LOW } palette;
+
+    uint16_t tile_id;
+    size_t tile_x, tile_y;
+} sprite_t;
 
 typedef struct {
     int length;
@@ -67,9 +66,11 @@ typedef struct {
 } sprite_table_t;
 
 bool graphics_init(gfx_t *gfx);
+void graphics_destroy(gfx_t *gfx);
 bool graphics_lock(context_t *ctx);
 void graphics_unlock(context_t *ctx);
 void graphics_update(context_t *ctx, int cycles);
+void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite);
 // TODO: Const this?
 //void grapics_debug_tiles(context_t *context);
 

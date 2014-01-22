@@ -13,15 +13,6 @@
 
 #include "buffers.h"
 
-typedef enum emulation_state {
-    // Usually means that a breakpoint has been hit.
-    STOPPED = 0,
-    // Only execute one instruction at a time.
-    SINGLE_STEPPING,
-    // Emulation runs until program is quit or breakpoint etc. is hit.
-    RUNNING
-} emulation_state_t;
-
 struct context {
     // CPU
     cpu_t cpu;
@@ -46,10 +37,14 @@ struct context {
     uint8_t joypad_state;
     
     emulation_state_t state;
+    bool running;
 
 #if defined(DEBUG)
     circular_buffer* logs;
 #endif
+
+    update_func_t update_func;
+    void* update_func_context;
 };
 
 bool context_init_minimal(context_t *ctx);

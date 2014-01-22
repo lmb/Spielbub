@@ -2,8 +2,6 @@
 #define __IOREGS_H__
 
 #define OAM_START (0xFE00)
-#define OAM_ENTRIES (40)
-#define OAM_ENTRY_SIZE (4)
 
 #define R_JOYPAD (0xFF00)
 #define R_JOYPAD_CONTROL (5)

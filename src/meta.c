@@ -7,7 +7,7 @@
  * Decodes an opcode into a string including the opcodes
  * arguments. Adapted from EMUTools.
  */
-void meta_parse(char* meta, const uint8_t* p)
+void meta_parse(char* meta, size_t len, const uint8_t* p)
 {
     char *d, *t;
     char  b[20];
@@ -17,39 +17,39 @@ void meta_parse(char* meta, const uint8_t* p)
 
     if (d == NULL)
     {
-            sprintf(meta, "INVLD 0x%02X", *(p - 1));
+            snprintf(meta, len, "INVLD 0x%02X", *(p - 1));
     }
     else if ((t = strchr(d, '*')) != NULL)
     {
         strncpy(meta, d, t - d);
         meta[t - d] = '\0';
 
-        sprintf(b, "%02X", *p++);
-        strcat(meta, b);
-        strcat(meta, t + 1);
+        snprintf(b, sizeof b, "%02X", *p++);
+        strncat(meta, b, len - 1);
+        strncat(meta, t + 1, len - 1);
     }
     else if ((t = strchr(d, '@')) != NULL)
     {
         strncpy(meta, d, t - d);
         meta[t - d] = '\0';
 
-        strcat(meta, *p & 0x80 ? "-" : "+");
-        sprintf(b, "%02X", *p & 0x80 ? 256 - *p : *p);
-        strcat(meta, b);
-        strcat(meta, t + 1);
+        strncat(meta, *p & 0x80 ? "-" : "+", len - 1);
+        snprintf(b, sizeof b, "%02X", *p & 0x80 ? 256 - *p : *p);
+        strncat(meta, b, len - 1);
+        strncat(meta, t + 1, len - 1);
     }
     else if ((t = strchr(d, '#')) != NULL)
     {
         strncpy(meta, d, t - d);
         meta[t - d] = '\0';
 
-        sprintf(b, "%04X", p[1]*256 + p[0]);
-        strcat(meta, b);
-        strcat(meta, t + 1);
+        snprintf(b, sizeof b, "%04X", p[1]*256 + p[0]);
+        strncat(meta, b, len - 1);
+        strncat(meta, t + 1, len - 1);
     }
     else
     {
-        strcpy(meta, d);
+        strncpy(meta, d, len);
     }
 }
 

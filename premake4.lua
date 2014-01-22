@@ -21,7 +21,7 @@ solution "Spielbub"
    project "Spielbub"
       kind "ConsoleApp"
       language "C"
-      files { "src/runner/*.h", "src/runner/*.c" }
+      files { "src/debugger/*.c" }
       links { "Spiellib" }
 
       links { "sdl2" }
@@ -30,7 +30,7 @@ solution "Spielbub"
          links { "Cocoa.framework" }
       end
 
-   project "Spieltest"
+   project "tests"
       kind "ConsoleApp"
       language "C"
       files { "src/tests/*.c" }
