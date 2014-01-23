@@ -7,10 +7,16 @@
  * Decodes an opcode into a string including the opcodes
  * arguments. Adapted from EMUTools.
  */
-void meta_parse(char* meta, size_t len, const uint8_t* p)
+size_t meta_parse(char* meta, size_t len, const uint8_t* p)
 {
+    /* '*': uint8_t
+     * '@': int8_t
+     * '#': uint16_t
+     */
+
     char *d, *t;
     char  b[20];
+    size_t opcode_len = 1;
 
     if (*p == 0xCB) { p++; d = ext_opcode_meta[*p++].description; }
     else { d = opcode_meta[*p++].description; }
@@ -27,6 +33,8 @@ void meta_parse(char* meta, size_t len, const uint8_t* p)
         snprintf(b, sizeof b, "%02X", *p++);
         strncat(meta, b, len - 1);
         strncat(meta, t + 1, len - 1);
+
+        opcode_len++;
     }
     else if ((t = strchr(d, '@')) != NULL)
     {
@@ -37,6 +45,8 @@ void meta_parse(char* meta, size_t len, const uint8_t* p)
         snprintf(b, sizeof b, "%02X", *p & 0x80 ? 256 - *p : *p);
         strncat(meta, b, len - 1);
         strncat(meta, t + 1, len - 1);
+
+        opcode_len++;
     }
     else if ((t = strchr(d, '#')) != NULL)
     {
@@ -46,14 +56,18 @@ void meta_parse(char* meta, size_t len, const uint8_t* p)
         snprintf(b, sizeof b, "%04X", p[1]*256 + p[0]);
         strncat(meta, b, len - 1);
         strncat(meta, t + 1, len - 1);
+
+        opcode_len += 2;
     }
     else
     {
         strncpy(meta, d, len);
     }
+
+    return opcode_len;
 }
 
-#define OPCODE(x, y) {x, y}
+#define OPCODE(x, y) { .description = x, .cycles = y }
 
 opcode_meta_t const opcode_meta[] = {
 	/* 0x00 */ OPCODE(               "NOP",  4),

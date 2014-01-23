@@ -8,38 +8,9 @@
 #include "debugger/debug.h"
 #include "debugger/commands.h"
 
-bool debug_init(debug_t* dbg)
+void update(context_t* ctx, debug_t *dbg)
 {
-    memset(dbg->commandline, 0, sizeof dbg->commandline);
-    dbg->post_exec = &debug_print_pc;
-    // dbg->window = graphics_create_window("Tile DBG", 256, 256);
-
-    if (dbg->window == NULL) {
-        printf("Failed to create window\n");
-        return false;
-    }
-
-    return true;
-}
-
-void debug_free(debug_t *dbg)
-{
-    // graphics_free_window(dbg->window);
-}
-
-void debug_print_pc(context_t* ctx, debug_t* dbg)
-{
-    registers_t regs;
-    char buffer[256] = "";
-
-    context_get_registers(ctx, &regs);
-    context_decode_instruction(ctx, regs.PC, buffer, sizeof buffer);
-
-    printf("%04x: %s\n", regs.PC, buffer);
-}
-
-void debug_update(context_t* ctx, debug_t *dbg)
-{
+    static execution_state_t state = -1;
     static bool write_prompt = true;
     static fd_set input;
     static struct timeval timeout;
@@ -50,10 +21,9 @@ void debug_update(context_t* ctx, debug_t *dbg)
     timeout.tv_sec  = 0;
     timeout.tv_usec = 0;
 
-    if (dbg->post_exec != NULL)
-    {
-        dbg->post_exec(ctx, dbg);
-        dbg->post_exec = NULL;
+    execution_state_t new_state = context_get_exec(ctx);
+    if (new_state != RUNNING && new_state != state) {
+        debug_post_exec_print_pc(ctx, dbg);
     }
 
     if (write_prompt) {
@@ -90,6 +60,8 @@ void debug_update(context_t* ctx, debug_t *dbg)
 
         write_prompt = true;
     }
+
+    state = context_get_exec(ctx);
 }
 
 int main(int argc, const char* argv[])
@@ -102,7 +74,7 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-    if ((ctx = context_create((update_func_t)debug_update, (void*)&dbg)) == NULL)
+    if ((ctx = context_create((update_func_t)update, (void*)&dbg)) == NULL)
     {
         printf("Context could not be initialized!\n");
         return 1;
@@ -115,7 +87,7 @@ int main(int argc, const char* argv[])
     }
 
     debug_init(&dbg);
-    context_set_exec(ctx, STOPPED);
+    context_pause_exec(ctx);
     context_run(ctx);
     debug_free(&dbg);
     context_destroy(ctx);

@@ -12,6 +12,6 @@ typedef struct {
 extern const opcode_meta_t opcode_meta[];
 extern const opcode_meta_t ext_opcode_meta[];
 
-void meta_parse(char *meta, size_t len, const uint8_t* opcode);
+size_t meta_parse(char *meta, size_t len, const uint8_t* opcode);
 
 #endif//__META_H__

@@ -14,6 +14,7 @@ typedef struct {
 
 void pl_init(prob_list_t *pl);
 bool pl_add(prob_list_t *pl, uint16_t value);
+void pl_remove(prob_list_t* pl, uint16_t value);
 bool pl_check(const prob_list_t *pl, uint16_t value);
 
 #endif//__PROBABILITY_LIST_H__

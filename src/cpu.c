@@ -20,14 +20,6 @@ void cpu_init(cpu_t* cpu)
     cpu->SP  = 0xFFFE;
     cpu->PC  = 0x0100;
     cpu->IME = true;
-
-#if defined(DEBUG)
-    if (cpu->trace != NULL) {
-        cb_reset(cpu->trace);
-    } else {
-        cpu->trace = cb_init(20, 2);
-    }
-#endif
 }
 
 /*
@@ -96,16 +88,6 @@ int cpu_run(context_t *ctx)
     unsigned int value = 0;
     unsigned int opcode;
     unsigned int cycles = 0;
-
-#if defined(DEBUG)
-    cb_write(cpu->trace, &cpu->PC);
-#endif
-
-    if (pl_check(&(cpu->breakpoints), cpu->PC))
-    {
-        ctx->state = STOPPED;
-        return cycles;
-    }
     
     opcode = mem->map[cpu->PC++];
 

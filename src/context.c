@@ -22,8 +22,12 @@ bool context_init_minimal(context_t *ctx)
 
 #if defined(DEBUG)
     ctx->logs = cb_init(LOG_NUM, LOG_LEN);
+    if (ctx->logs == NULL) {
+        return false;
+    }
 
-    if (!ctx->logs) {
+    ctx->traceback = cb_init(20, 2);
+    if (ctx->traceback == NULL) {
         return false;
     }
 #endif
@@ -74,6 +78,8 @@ void context_destroy(context_t *ctx)
 
 #if defined(DEBUG)
         cb_destroy(ctx->logs);
+        cb_destroy(ctx->traceback);
+        pl_init(&ctx->breakpoints);
 #endif
 
         graphics_destroy(&ctx->gfx);
@@ -100,8 +106,12 @@ bool context_run(context_t* ctx)
 
     while (ctx->running)
     {
-        while (ctx->state != STOPPED) {
+        while (ctx->state == RUNNING) {
             int cycles;
+
+#if defined(DEBUG)
+            cb_write(ctx->traceback, &ctx->cpu.PC);
+#endif
 
             if (ctx->cpu.halted) {
                 cycles = 4;
@@ -118,11 +128,16 @@ bool context_run(context_t* ctx)
                 // Interrupt Master Enable
                 cpu_interrupts(ctx);
             }
-            
-            if (ctx->state == SINGLE_STEPPING)
+
+#if defined(DEBUG)
+            if (ctx->single_step)
             {
                 ctx->state = STOPPED;
+                ctx->single_step = false;
+            } else if (pl_check(&ctx->breakpoints, ctx->cpu.PC)) {
+                ctx->state = STOPPED;
             }
+#endif
 
             cycles_frame += cycles;
             if (cycles_frame >= CYCLES_PER_FRAME) {
@@ -173,20 +188,36 @@ void context_quit(context_t* ctx)
     ctx->running = false;
 }
 
-void context_decode_instruction(const context_t* ctx, uint16_t addr,
+size_t context_decode_instruction(const context_t* ctx, uint16_t addr,
     char dst[], size_t len)
 {
-    meta_parse(dst, len, &ctx->mem.map[addr]);
+    return meta_parse(dst, len, &ctx->mem.map[addr]);
 }
 
-void context_set_exec(context_t* ctx, emulation_state_t state)
+void context_resume_exec(context_t* ctx)
 {
-    ctx->state = state;
+    ctx->state = RUNNING;
 }
 
-emulation_state_t context_get_exec(context_t* ctx)
+void context_pause_exec(context_t* ctx)
+{
+    ctx->state = STOPPED;
+}
+
+void context_single_step(context_t* ctx)
+{
+    ctx->state = RUNNING;
+    ctx->single_step = true;
+}
+
+execution_state_t context_get_exec(context_t* ctx)
 {
     return ctx->state;
+}
+
+bool context_add_breakpoint(context_t* ctx, uint16_t addr)
+{
+    return pl_add(&ctx->breakpoints, addr);
 }
 
 void context_get_registers(const context_t* ctx, registers_t* regs)
@@ -197,4 +228,19 @@ void context_get_registers(const context_t* ctx, registers_t* regs)
     regs->HL = ctx->cpu.HL;
     regs->SP = ctx->cpu.SP;
     regs->PC = ctx->cpu.PC;
+}
+
+uint8_t context_get_memory(const context_t* ctx, uint16_t addr)
+{
+    return ctx->mem.map[addr];
+}
+
+void context_reset_traceback(const context_t* ctx)
+{
+    cb_reset(ctx->traceback);
+}
+
+bool context_get_traceback(const context_t* ctx, uint16_t* value)
+{
+    return cb_read(ctx->traceback, (uint8_t*)value);
 }

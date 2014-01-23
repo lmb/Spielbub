@@ -16,6 +16,10 @@ struct debug {
     void (*post_exec)(context_t*, debug_t* dbg);
 };
 
-void debug_print_pc(context_t* ctx, debug_t* dbg);
+bool debug_init(debug_t* dbg);
+void debug_free(debug_t *dbg);
+void debug_print_func(const context_t* ctx, uint16_t addr);
+void debug_print_addr(const context_t* ctx, uint16_t addr);
+void debug_post_exec_print_pc(context_t* ctx, debug_t* dbg);
 
 #endif//__DEBUG_H__

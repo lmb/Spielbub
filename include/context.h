@@ -36,11 +36,14 @@ struct context {
     // keys is saved here.
     uint8_t joypad_state;
     
-    emulation_state_t state;
+    execution_state_t state;
     bool running;
+    bool single_step;
 
 #if defined(DEBUG)
     circular_buffer* logs;
+    circular_buffer* traceback;
+    prob_list_t breakpoints;
 #endif
 
     update_func_t update_func;

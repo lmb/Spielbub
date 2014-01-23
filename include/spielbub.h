@@ -10,13 +10,15 @@ typedef struct window window_t;
 typedef void (*update_func_t)(context_t*, void*);
 
 typedef enum emulation_state {
-    // Usually means that a breakpoint has been hit.
+    // Initial state
     STOPPED = 0,
     // Only execute one instruction at a time.
-    SINGLE_STEPPING,
+    SINGLE_STEPPED,
+    // Executions breakpoint was hit
+    BREAKPOINT,
     // Emulation runs until program is quit or breakpoint etc. is hit.
     RUNNING
-} emulation_state_t;
+} execution_state_t;
 
 typedef struct registers {
     uint16_t AF, BC, DE, HL, SP, PC;
@@ -28,13 +30,21 @@ void context_destroy(context_t *ctx);
 void context_quit(context_t* ctx);
 bool context_run(context_t* ctx);
 
-void context_decode_instruction(const context_t* ctx, uint16_t addr,
+size_t context_decode_instruction(const context_t* ctx, uint16_t addr,
     char dst[], size_t len);
 
-void context_set_exec(context_t* ctx, emulation_state_t state);
-emulation_state_t context_get_exec(context_t* ctx);
+void context_resume_exec(context_t* ctx);
+void context_pause_exec(context_t* ctx);
+void context_single_step(context_t* ctx);
+execution_state_t context_get_exec(context_t* ctx);
+
+bool context_add_breakpoint(context_t* ctx, uint16_t addr);
 
 void context_get_registers(const context_t* ctx, registers_t* regs);
+uint8_t context_get_memory(const context_t* ctx, uint16_t addr);
+
+void context_reset_traceback(const context_t* ctx);
+bool context_get_traceback(const context_t* ctx, uint16_t* value);
 
 window_t* graphics_create_window(const char name[], int w, int h);
 void graphics_free_window(window_t* window);

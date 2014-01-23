@@ -40,14 +40,6 @@ typedef struct cpu {
     // nothing until the next interrupt
     // occurs
     bool halted;
-    
-    // Number of cycles executed
-    //unsigned int cycles;
-
-#if defined(DEBUG)
-    circular_buffer* trace;
-    prob_list_t breakpoints;
-#endif
 } cpu_t;
 
 void cpu_init(cpu_t *cpu);
