@@ -7,7 +7,7 @@
 #define LOG_LEN (256)
 
 #if defined(DEBUG)
-#define log_dbg(ctx, msg, ...) context_log(ctx, msg, ##__VA_ARGS__)
+#define log_dbg(ctx, msg, ...) context_log(ctx, msg, __VA_ARGS__)
 #else
 #define log_dbg(ctx, msg, ...)
 #endif

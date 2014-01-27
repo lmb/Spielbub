@@ -23,7 +23,7 @@ void update(context_t* ctx, debug_t *dbg)
 
     execution_state_t new_state = context_get_exec(ctx);
     if (new_state != RUNNING && new_state != state) {
-        debug_post_exec_print_pc(ctx, dbg);
+        debug_print_pc(ctx);
     }
 
     if (write_prompt) {

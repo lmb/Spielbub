@@ -511,7 +511,7 @@ draw_tile(dest_t* restrict dst, const source_t* restrict src,
         (morton_table[line_high] << 1) | morton_table[line_low];
 
     // Copy pixel for pixel
-    for (int i = src->x; i < num; i++) {
+    for (size_t i = src->x; i < num; i++) {
         const int shift = (7 - i) * 2;
         dst->data[i] = palette->colors[(line & (0x3 << shift)) >> shift];
     }

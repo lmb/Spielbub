@@ -230,9 +230,13 @@ void context_get_registers(const context_t* ctx, registers_t* regs)
     regs->PC = ctx->cpu.PC;
 }
 
-uint8_t context_get_memory(const context_t* ctx, uint16_t addr)
+uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
+    uint16_t addr, uint16_t len)
 {
-    return ctx->mem.map[addr];
+    len = 0xFFFF - len < addr ? 0xFFFF - addr : len;
+
+    memcpy(buffer, &ctx->mem.map[addr], len);
+    return len;
 }
 
 void context_reset_traceback(const context_t* ctx)

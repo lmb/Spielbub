@@ -12,6 +12,7 @@
 #include "logging.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 // Type 1
 void mbc1_init();
@@ -39,11 +40,11 @@ static const uint8_t ioregs_init[0x4C] = {
     0x91,    0,    0,    0,    0,    0,    0, 0xFC, 0xFF, 0xFF,    0,    0                          // 4x
 };
 
-static bool mem_map(memory_t *mem, int bank, uint8_t *src)
+static bool mem_map(memory_t* mem, size_t bank, void* src)
 {
     const uint16_t addr = bank * 0x2000 + (bank == 4 ? 0x2000 : 0);
 
-    if (bank < 0 || bank > 4 || src == NULL) {
+    if (bank > 4 || src == NULL) {
         return false;
     }
 
@@ -61,13 +62,13 @@ static bool mem_map(memory_t *mem, int bank, uint8_t *src)
     return true;
 }
 
-static bool mem_map_many(memory_t *mem, const int bank, const size_t num,
-    uint8_t* src)
+static bool mem_map_many(memory_t *mem, size_t bank, const size_t num,
+    void* src)
 {
-    int i, j;
+    size_t i, j;
 
     for (i = bank, j = 0; i < bank + num; i++, j++) {
-        if (!mem_map(mem, i, src + (j * 0x2000))) {
+        if (!mem_map(mem, i, (uint8_t*)src + (j * 0x2000))) {
             return false;
         }
     }
@@ -79,6 +80,7 @@ void mem_init(memory_t *mem)
 {
     // TODO: Does this even set all items to NULL?
     memset(mem->map, 0, sizeof(mem->map));
+    memset(mem->banks, 0, sizeof(mem->banks));
 
     // mem->map[4] = mem->video_ram;
     // mem->map[5] = swappable memory bank
@@ -96,7 +98,7 @@ void mem_init_debug(memory_t *mem)
     mem_init(mem);
     mem->rom = malloc(5 * 0x2000);
 
-    mem_map_many(mem, 0, 5, mem->rom);
+    mem_map_many(mem, 0, 4, mem->rom);
 }
 
 void mem_destroy(memory_t *mem)
@@ -235,7 +237,7 @@ void mbc1(memory_t *mem, int addr, uint8_t value)
     {
         // ROM bank switching
         int bank = (value & 0x1F);
-        bank = MIN(bank, 1) | mem->mbc.type1.upper_rom_bits;
+        bank = MAX(bank, 1) | mem->mbc.type1.upper_rom_bits;
 
         mem_map_many(mem, 2, 2, mem->rom + (bank * 0x4000));
     }

@@ -7,21 +7,25 @@
 
 void _push(context_t *context, uint16_t value);
 uint16_t _pop(context_t *context);
-void _add(context_t *context, uint8_t n, bool add_carry);
-void _add_16(context_t *context, uint16_t n);
-void _sub(context_t *context, uint8_t n, bool add_carry);
-void _inc(context_t *context, uint8_t* r);
-void _dec(context_t *context, uint8_t* r);
-void _and(context_t *context, uint8_t n);
-void _or(context_t *context, uint8_t n);
-void _xor(context_t *context, uint8_t n);
-void _cp(context_t *context, uint8_t n);
-void _swap(context_t *context, uint8_t* r);
-void _rotate_l(context_t *context, uint8_t* r, bool through_carry);
-void _rotate_r(context_t *context, uint8_t *r, bool through_carry);
-void _shift_l(context_t *context, uint8_t* r);
-void _shift_r(context_t *context, uint8_t* r);
-void _shift_r_logic(context_t *context, uint8_t* r);
+
+void _add(cpu_t* cpu, uint8_t n, bool add_carry);
+void _add16(cpu_t* cpu, uint16_t n);
+void _sub(cpu_t* cpu, uint8_t n, bool add_carry);
+void _inc(cpu_t* cpu, uint8_t* r);
+void _dec(cpu_t* cpu, uint8_t* r);
+void _and(cpu_t* cpu, uint8_t n);
+void _or(cpu_t* cpu, uint8_t n);
+void _xor(cpu_t* cpu, uint8_t n);
+void _cp(cpu_t* cpu, uint8_t n);
+void _swap(cpu_t* cpu, uint8_t* r);
+void _rotate_l(cpu_t* cpu, uint8_t* r);
+void _rotate_r(cpu_t* cpu, uint8_t *r);
+void _rotate_l_carry(cpu_t* cpu, uint8_t* r);
+void _rotate_r_carry(cpu_t* cpu, uint8_t *r);
+void _shift_l(cpu_t* cpu, uint8_t* r);
+void _shift_r_arithm(cpu_t* cpu, uint8_t* r);
+void _shift_r_logic(cpu_t* cpu, uint8_t* r);
+
 void _jump(context_t *context);
 void _jump_rel(context_t *context);
 void _call(context_t *context);

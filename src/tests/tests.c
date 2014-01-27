@@ -46,65 +46,432 @@ START_TEST (test_cpu_registers)
 }
 END_TEST
 
+START_TEST (test_cpu_stack)
+{
+    uint16_t old_sp = ctx.cpu.SP;
+
+    _push(&ctx, 0x1234);
+
+    fail_unless(ctx.cpu.SP == old_sp - 2);
+    fail_unless(_pop(&ctx) == 0x1234);
+}
+END_TEST
+
 START_TEST (test_cpu_add)
 {
-    ctx.cpu.A = 0;
-    cpu_set_n(&ctx.cpu, true);
-    cpu_set_z(&ctx.cpu, true);
+    cpu_t cpu;
 
-    _add(&ctx, 13, false);
+    cpu.A = 0;
+    cpu_set_n(&cpu, true);
+    cpu_set_z(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
 
-    fail_unless(ctx.cpu.A == 13, "_add failed, A = %d", ctx.cpu.A);
-    fail_unless(!cpu_get_z(&ctx.cpu), "_add set Z flag");
-    fail_unless(!cpu_get_n(&ctx.cpu), "_add failed to reset N flag");
-    // TODO: H set if carry from bit 3
-    // TODO: C set if carry from bit 7
+    _add(&cpu, 0xD, false);
 
-    cpu_set_c(&ctx.cpu, false);
+    fail_unless(cpu.A == 0xD, "_add failed, A = %d", cpu.A);
+    fail_unless(!cpu_get_z(&cpu), "_add set Z flag");
+    fail_unless(!cpu_get_n(&cpu), "_add failed to reset N flag");
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
 
-    _add(&ctx, 244, false);
-    fail_unless(ctx.cpu.A == 1, "_add with overflow failed, A = %d", ctx.cpu.A);
-    fail_unless(cpu_get_c(&ctx.cpu), "_add failed to set C flag");
-    // TODO: GET_H()
+    _add(&cpu, 0x3, false);
+
+    fail_unless(cpu.A == 0x10);
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+
+    _add(&cpu, 0xEF, false);
+
+    fail_unless(cpu.A == 0xFF);
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    _add(&cpu, 1, false);
+
+    fail_unless(cpu.A == 0);
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_add16)
+{
+    cpu_t cpu;
+
+    cpu.HL = 0;
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _add16(&cpu, 0x1001);
+
+    fail_unless(cpu.HL == 0x1001);
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    _add16(&cpu, 0xFF);
+
+    fail_unless(cpu.HL == 0x1100);
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+
+    _add16(&cpu, 0xef00);
+
+    fail_unless(cpu.HL == 0);
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
 }
 END_TEST
 
 START_TEST (test_cpu_sub)
 {
-    ctx.cpu.A = 100;
-    cpu_set_z(&ctx.cpu, true);
-    cpu_set_n(&ctx.cpu, false);
-    cpu_set_c(&ctx.cpu, true);
+    cpu_t cpu;
 
-    _sub(&ctx, 10, false);
+    cpu.A = 0xFF;
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, false);
+    cpu_set_c(&cpu, true);
 
-    fail_unless(ctx.cpu.A == 90, "_sub failed, A = %d", ctx.cpu.A);
-    fail_unless(!cpu_get_z(&ctx.cpu), "_sub set Z flag");
-    fail_unless(cpu_get_n(&ctx.cpu), "_sub failed to set N flag");
-    fail_unless(!cpu_get_c(&ctx.cpu), "_sub set C flag");
+    _sub(&cpu, 0xF, false);
 
-    cpu_set_z(&ctx.cpu, false);
+    fail_unless(cpu.A == 0xF0, "_sub failed, A = %d", cpu.A);
+    fail_unless(!cpu_get_z(&cpu), "_sub set Z flag");
+    fail_unless(cpu_get_n(&cpu), "_sub failed to set N flag");
+    fail_unless(!cpu_get_c(&cpu), "_sub set C flag");
+    fail_unless(!cpu_get_h(&cpu));
 
-    _sub(&ctx, 90, false);
-    fail_unless(ctx.cpu.A == 0, "_sub failed, A = %d", ctx.cpu.A);
-    fail_unless(cpu_get_z(&ctx.cpu), "_sub failed to set Z flag");
-    
-    cpu_set_c(&ctx.cpu, false);
+    _sub(&cpu, 0xF, false);
 
-    _sub(&ctx, 1, false);
-    fail_unless(ctx.cpu.A == 255, "_sub with underflow failed, A = %d", ctx.cpu.A);
-    fail_unless(cpu_get_c(&ctx.cpu), "_sub failed to set C flag");
-    
-//    fail_unless(ctx.cpu.A == 13, "_add failed, A = %d", ctx.cpu.A);
-//    fail_unless(cpu_get_z(&ctx.cpu) == 0, "_add set Z flag");
-//    fail_unless(!cpu_get_n(&ctx.cpu), "_add failed to reset N flag");
-//    // TODO: H set if carry from bit 3
-//    // TODO: C set if carry from bit 7
-//    
-//    _add(&ctx, 244, false);
-//    fail_unless(ctx.cpu.A == 1, "_add with overflow failed, A = %d", ctx.cpu.A);
-//    fail_unless(cpu_get_c(&ctx.cpu), "_add failed to set C flag");
-//    // TODO: GET_H()
+    fail_unless(cpu.A == 0xE1);
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+
+    _sub(&cpu, 0xE1, false);
+
+    fail_unless(cpu.A == 0, "_sub failed, A = %d", cpu.A);
+    fail_unless(cpu_get_z(&cpu), "_sub failed to set Z flag");
+
+    _sub(&cpu, 1, false);
+
+    fail_unless(cpu.A == 0xFF, "_sub with underflow failed, A = %d", cpu.A);
+    fail_unless(cpu_get_c(&cpu), "_sub failed to set C flag");
+}
+END_TEST
+
+START_TEST (test_cpu_inc)
+{
+    cpu_t cpu;
+    uint8_t reg = 0;
+
+    cpu_set_n(&cpu, true);
+    cpu_set_z(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _inc(&cpu, &reg);
+
+    fail_unless(reg == 1);
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    reg = 0x0F;
+    _inc(&cpu, &reg);
+
+    fail_unless(reg == 0x10);
+    fail_unless(cpu_get_h(&cpu));
+
+    reg = 0xFF;
+    _inc(&cpu, &reg);
+
+    fail_unless(reg == 0);
+    fail_unless(cpu_get_z(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_dec)
+{
+    cpu_t cpu;
+    uint8_t reg = 0xFF;
+
+    cpu_set_n(&cpu, false);
+    cpu_set_z(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _dec(&cpu, &reg);
+
+    fail_unless(reg == 0xFE);
+    fail_unless(cpu_get_n(&cpu));
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    reg = 0;
+    _dec(&cpu, &reg);
+
+    fail_unless(reg == 0xFF);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_and)
+{
+    cpu_t cpu;
+    cpu.A = 0x55;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, false);
+
+    _and(&cpu, 0xF0);
+
+    fail_unless(cpu.A == 0x50);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(cpu_get_h(&cpu));
+
+    _and(&cpu, 0x00);
+
+    fail_unless(cpu.A == 0);
+    fail_unless(cpu_get_z(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_or)
+{
+    cpu_t cpu;
+    cpu.A = 0x50;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _or(&cpu, 0x05);
+
+    fail_unless(cpu.A == 0x55);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    cpu.A = 0;
+    _or(&cpu, 0x00);
+
+    fail_unless(cpu.A == 0);
+    fail_unless(cpu_get_z(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_xor)
+{
+    cpu_t cpu;
+    cpu.A = 0x55;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _xor(&cpu, 0xAA);
+
+    fail_unless(cpu.A == 0xFF);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    _xor(&cpu, 0xFF);
+
+    fail_unless(cpu.A == 0);
+    fail_unless(cpu_get_z(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_cp)
+{
+    cpu_t cpu;
+    cpu.A = 0x22;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, false);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _cp(&cpu, 0x02);
+
+    fail_unless(cpu.A == 0x22);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    _cp(&cpu, 0x22);
+
+    fail_unless(cpu_get_z(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+
+    _cp(&cpu, 0x23);
+
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(cpu_get_c(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_swap)
+{
+    cpu_t cpu;
+    uint8_t reg = 0x45;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _swap(&cpu, &reg);
+
+    fail_unless(reg == 0x54);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    reg = 0;
+    _swap(&cpu, &reg);
+
+    fail_unless(cpu_get_z(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_rotate)
+{
+    cpu_t cpu;
+    uint8_t reg;
+
+    // Rotate left
+    reg = 0xAA;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, false);
+    cpu_set_h(&cpu, true);
+
+    _rotate_l(&cpu, &reg);
+
+    fail_unless(reg == 0x55);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    cpu_set_c(&cpu, false);
+    reg = 0xAA;
+
+    _rotate_l_carry(&cpu, &reg);
+
+    fail_unless(reg == 0x54);
+    fail_unless(cpu_get_c(&cpu));
+
+    // Rotate right
+    reg = 0x55;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, false);
+    cpu_set_h(&cpu, true);
+
+    _rotate_r(&cpu, &reg);
+
+    fail_unless(reg == 0xAA);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    cpu_set_c(&cpu, false);
+    reg = 0x55;
+
+    _rotate_r_carry(&cpu, &reg);
+
+    fail_unless(reg == 0x2A);
+    fail_unless(cpu_get_c(&cpu));
+}
+END_TEST
+
+START_TEST (test_cpu_shift)
+{
+    cpu_t cpu;
+    uint8_t reg = 0xAA;
+
+    // Shift left
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, false);
+    cpu_set_h(&cpu, true);
+
+    _shift_l(&cpu, &reg);
+
+    fail_unless(reg == 0x54);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    reg = 0;
+    _shift_l(&cpu, &reg);
+
+    fail_unless(cpu_get_z(&cpu));
+
+    // Shift right (logical)
+    reg = 0x55;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, false);
+    cpu_set_h(&cpu, true);
+
+    _shift_r_logic(&cpu, &reg);
+
+    fail_unless(reg == 0x2A);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    reg = 0;
+    _shift_r_logic(&cpu, &reg);
+
+    fail_unless(cpu_get_z(&cpu));
+
+    // Shift right (arithmetical)
+    reg = 0xAA;
+
+    cpu_set_z(&cpu, true);
+    cpu_set_n(&cpu, true);
+    cpu_set_c(&cpu, true);
+    cpu_set_h(&cpu, true);
+
+    _shift_r_arithm(&cpu, &reg);
+
+    fail_unless(reg == 0xD5);
+    fail_unless(!cpu_get_z(&cpu));
+    fail_unless(!cpu_get_n(&cpu));
+    fail_unless(!cpu_get_c(&cpu));
+    fail_unless(!cpu_get_h(&cpu));
+
+    _shift_r_arithm(&cpu, &reg);
+
+    fail_unless(reg == 0xEA);
+    fail_unless(cpu_get_c(&cpu));
+
+    reg = 0;
+    _shift_r_arithm(&cpu, &reg);
+
+    fail_unless(reg == 0);
+    fail_unless(cpu_get_z(&cpu));
 }
 END_TEST
 
@@ -210,16 +577,16 @@ END_TEST
 
 START_TEST (test_mem_locations)
 {
-    fail_unless(offsetof(memory_t, io.JOYPAD) == 0xFF00);
-    fail_unless(offsetof(memory_t, io.DIV) == 0xFF04);
-    fail_unless(offsetof(memory_t, io.IF) == 0xFF0F);
-    fail_unless(offsetof(memory_t, io.LCDC) == 0xFF40);
-    fail_unless(offsetof(memory_t, io.IE) == 0xFFFF);
+    fail_unless(offsetof(memory_io_t, JOYPAD) == 0xFF00);
+    fail_unless(offsetof(memory_io_t, DIV) == 0xFF04);
+    fail_unless(offsetof(memory_io_t, IF) == 0xFF0F);
+    fail_unless(offsetof(memory_io_t, LCDC) == 0xFF40);
+    fail_unless(offsetof(memory_io_t, IE) == 0xFFFF);
 
-    fail_unless(offsetof(memory_t, gfx.tiles) == 0x8000);
-    fail_unless(offsetof(memory_t, gfx.map_low) == 0x9800);
-    fail_unless(offsetof(memory_t, gfx.map_high) == 0x9C00);
-    fail_unless(offsetof(memory_t, gfx.oam) == 0xFE00);
+    fail_unless(offsetof(memory_gfx_t, tiles) == 0x8000);
+    fail_unless(offsetof(memory_gfx_t, map_low) == 0x9800);
+    fail_unless(offsetof(memory_gfx_t, map_high) == 0x9C00);
+    fail_unless(offsetof(memory_gfx_t, oam) == 0xFE00);
 }
 END_TEST
 
@@ -272,8 +639,19 @@ Suite * spielbub_suite(void)
     tcase_add_checked_fixture(tc_cpu, setup_cpu, NULL);
     tcase_add_test(tc_cpu, test_cpu_init);
     tcase_add_test(tc_cpu, test_cpu_registers);
+    tcase_add_test(tc_cpu, test_cpu_stack);
     tcase_add_test(tc_cpu, test_cpu_add);
+    tcase_add_test(tc_cpu, test_cpu_add16);
     tcase_add_test(tc_cpu, test_cpu_sub);
+    tcase_add_test(tc_cpu, test_cpu_inc);
+    tcase_add_test(tc_cpu, test_cpu_dec);
+    tcase_add_test(tc_cpu, test_cpu_and);
+    tcase_add_test(tc_cpu, test_cpu_or);
+    tcase_add_test(tc_cpu, test_cpu_xor);
+    tcase_add_test(tc_cpu, test_cpu_cp);
+    tcase_add_test(tc_cpu, test_cpu_swap);
+    tcase_add_test(tc_cpu, test_cpu_rotate);
+    tcase_add_test(tc_cpu, test_cpu_shift);
     tcase_add_loop_test(tc_cpu, test_cpu_ld, 0x40, 0x80);
     suite_add_tcase(s, tc_cpu);
     

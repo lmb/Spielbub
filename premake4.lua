@@ -5,10 +5,9 @@ solution "Spielbub"
 
    flags { "FatalWarnings" }
 
-   if not os.get() == "windows" then
-      buildoptions { "-ansi", "-std=c99", "-pedantic", "-ffunction-sections",
-         "-Wextra" }
-   end
+   -- if not os.get() == "windows" then
+      buildoptions { "-ansi", "-std=gnu11", "-pedantic", "-Wextra" }
+   -- end
 
    configuration "Debug"
       defines { "DEBUG" }

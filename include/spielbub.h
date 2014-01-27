@@ -41,7 +41,8 @@ execution_state_t context_get_exec(context_t* ctx);
 bool context_add_breakpoint(context_t* ctx, uint16_t addr);
 
 void context_get_registers(const context_t* ctx, registers_t* regs);
-uint8_t context_get_memory(const context_t* ctx, uint16_t addr);
+uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
+    uint16_t addr, uint16_t len);
 
 void context_reset_traceback(const context_t* ctx);
 bool context_get_traceback(const context_t* ctx, uint16_t* value);

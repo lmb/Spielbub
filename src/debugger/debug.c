@@ -6,7 +6,6 @@
 bool debug_init(debug_t* dbg)
 {
     memset(dbg->commandline, 0, sizeof dbg->commandline);
-    dbg->post_exec = &debug_post_exec_print_pc;
     // dbg->window = graphics_create_window("Tile DBG", 256, 256);
 
     if (dbg->window == NULL) {
@@ -19,6 +18,8 @@ bool debug_init(debug_t* dbg)
 
 void debug_free(debug_t *dbg)
 {
+    (void)dbg;
+
     // graphics_free_window(dbg->window);
 }
 
@@ -40,7 +41,7 @@ void debug_print_addr(const context_t* ctx, uint16_t addr)
     printf("%04x: %s\n", addr, buffer);
 }
 
-void debug_post_exec_print_pc(context_t* ctx, debug_t* dbg)
+void debug_print_pc(context_t* ctx)
 {
     registers_t regs;
 

@@ -76,30 +76,45 @@ bool execute_command(const char* command, context_t* ctx, debug_t* dbg)
 
 static void exec_next(const char* args, context_t* ctx, debug_t* dbg)
 {
+    (void)args;
+    (void)dbg;
+
     context_single_step(ctx);
-    dbg->post_exec = &debug_post_exec_print_pc;
 }
 
 static void exec_pause(const char* args, context_t* ctx, debug_t* dbg)
 {
+    (void)args;
+    (void)dbg;
+
     printf("Paused.\n");
     context_pause_exec(ctx);
-    debug_post_exec_print_pc(ctx, dbg);
+    debug_print_pc(ctx);
 }
 
 static void exec_continue(const char* args, context_t* ctx, debug_t* dbg)
 {
+    (void)args;
+    (void)dbg;
+
     printf("Continuing.\n");
     context_resume_exec(ctx);
 }
 
 static void exec_quit(const char* args, context_t* ctx, debug_t* dbg)
 {
+    (void)args;
+    (void)dbg;
+
     context_quit(ctx);
 }
 
 static void exec_help(const char* args, context_t* ctx, debug_t* dbg)
 {
+    (void)args;
+    (void)ctx;
+    (void)dbg;
+
     printf("The following commands are supported:\n");
 
     for (size_t i = 0; i < NUM(commands); i++) {
@@ -110,6 +125,8 @@ static void exec_help(const char* args, context_t* ctx, debug_t* dbg)
 static void exec_list(const char* args, context_t* ctx, debug_t* dbg)
 {
     uint16_t addr;
+
+    (void)dbg;
 
     if (sscanf(args, "%hx", &addr) != 1) {
         registers_t regs;
@@ -123,6 +140,8 @@ static void exec_list(const char* args, context_t* ctx, debug_t* dbg)
 static void exec_breakpoint(const char* args, context_t* ctx, debug_t* dbg)
 {
     uint16_t addr;
+
+    (void)dbg;
 
     if (sscanf(args, "%hx", &addr) != 1) {
         printf("Please specify an address: breakpoint <addr>\n");
@@ -140,6 +159,9 @@ static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg)
 {
     uint16_t value;
 
+    (void)args;
+    (void)dbg;
+
     context_reset_traceback(ctx);
     while (context_get_traceback(ctx, &value)) {
         debug_print_addr(ctx, value);
@@ -156,25 +178,40 @@ static void exec_print(const char* args, context_t* ctx, debug_t* dbg)
         { "BC", offsetof(registers_t, BC) },
         { "DE", offsetof(registers_t, DE) },
         { "HL", offsetof(registers_t, HL) },
-        { "SP", offsetof(registers_t, SP) }
+        { "SP", offsetof(registers_t, SP) },
+        { "PC", offsetof(registers_t, PC) }
     };
 
-    uint16_t value;
+    uint16_t value, len;
     registers_t regs;
+
+    (void)dbg;
+
     context_get_registers(ctx, &regs);
 
     for (size_t i = 0; i < NUM(registers); i++) {
         if (strcmp(args, registers[i].name) == 0) {
-            value = *((uint16_t*)(((void*)&regs) + registers[i].offset));
+            value = *((uint16_t*)(((uint8_t*)&regs) + registers[i].offset));
             printf("%s = %04x\n", registers[i].name, value);
             return;
         }
     }
 
-    if (sscanf(args, "%hx", &value) != 1) {
-        printf("Please specify a register: AF|BC|DE|HL|SP|0xHHHH\n");
+    if (sscanf(args, "%hx:%hx", &value, &len) != 2) {
+        printf("Please specify a register <AF|BC|DE|HL|SP|PC> or <addr:len>\n");
         return;
     }
 
-    printf("[%04x]: %02x\n", value, context_get_memory(ctx, value));
+    uint8_t buffer[len];
+    len = context_get_memory(ctx, buffer, value, len);
+
+    for (size_t i = 0; i < len; i++, value++) {
+        if (i % 16 == 0) {
+            printf("\n[%04x]: ", value);
+        }
+
+        printf("%02x ", buffer[i]);
+    }
+
+    printf("\n");
 }

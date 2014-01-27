@@ -54,7 +54,7 @@ void cpu_interrupts(context_t *ctx);
 
 static inline void cpu_set_z(cpu_t *cpu, bool value)
 {
-    if (!value) {
+    if (value) {
         cpu->F |= 0x80;
     } else {
         cpu->F &= ~0x80;
