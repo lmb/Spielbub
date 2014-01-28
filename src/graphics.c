@@ -5,6 +5,8 @@
 #include "ioregs.h"
 #include "logging.h"
 
+#define NUM(x) (sizeof x / sizeof x[0])
+
 typedef struct tile {
     uint8_t lines[TILE_HEIGHT][2];
 } tile_t;
@@ -167,16 +169,24 @@ bool graphics_init(gfx_t* gfx)
     gfx->palette.colors[3] =
         SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
 
-    gfx->debug_palette.colors[0] =
-        SDL_MapRGB(gfx->background->format, 0xFF, 0x14, 0x93);
-    gfx->debug_palette.colors[1] =
-        SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
-    gfx->debug_palette.colors[2] =
-        SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
-    gfx->debug_palette.colors[3] =
-        SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
+    for (size_t i = 0; i < NUM(gfx->debug_palettes); i++) {
+        gfx->debug_palettes[i].colors[1] =
+            SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
+        gfx->debug_palettes[i].colors[2] =
+            SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
+        gfx->debug_palettes[i].colors[3] =
+            SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
+    }
 
-    gfx->screen_white = SDL_MapRGBA(gfx->background->format, 0xFF, 0xFF, 0xFF, 0xFF);
+    gfx->debug_palettes[0].colors[0] =
+        SDL_MapRGBA(gfx->background->format, 0xFF, 0x14, 0x93, 0x88);
+    gfx->debug_palettes[1].colors[0] =
+        SDL_MapRGBA(gfx->background->format, 0x32, 0xCD, 0x32, 0x88);
+    gfx->debug_palettes[2].colors[0] =
+        SDL_MapRGBA(gfx->background->format, 0x00, 0xF9, 0xF9, 0x88);
+
+    gfx->screen_white =
+        SDL_MapRGBA(gfx->background->format, 0xFF, 0xFF, 0xFF, 0xFF);
     gfx->state = OAM;
 
     SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
@@ -360,7 +370,11 @@ void graphics_update(context_t *ctx, int cycles)
                 {
                     ctx->mem.io.LY = 0;
                     set_mode(ctx, OAM);
-                    gfx->frame_rendered = true;
+
+                    if (ctx->stopflags & STOP_FRAME) {
+                        ctx->state = FRAME_STEPPED;
+                        ctx->stopflags &= ~STOP_FRAME;
+                    }
                 }
             }
             break;
@@ -428,8 +442,8 @@ map_next(map_t* map, source_t* src)
 }
 
 static void
-palette_decode(const palette_t* restrict base_palette,
-    palette_t* restrict palette, uint8_t raw_palette)
+palette_decode(palette_t* restrict palette,
+    const palette_t* restrict base_palette, uint8_t raw_palette)
 {
     /* Palettes are packed into an uint8_t and map color indexes to actual
      * colors. This is the layout:
@@ -565,12 +579,14 @@ get_tile_data(const memory_t *mem, uint16_t tile_id)
 }
 
 static void draw_line(context_t *ctx) {
-    // LCD control
+    gfx_t* gfx = &ctx->gfx;
     uint8_t lcdc = ctx->mem.io.LCDC;
     uint8_t screen_y = ctx->mem.io.LY;
 
+    map_t src;
+    dest_t dest;
     palette_t palette;
-    palette_decode(&ctx->gfx.palette, &palette, ctx->mem.io.BGP);
+    const palette_t* base_palette;
     
     if (!graphics_lock(ctx))
     {
@@ -580,23 +596,25 @@ static void draw_line(context_t *ctx) {
     // Background
     if (BIT_ISSET(lcdc, R_LCDC_BG_ENABLED))
     {
-        map_t background_map;
-        dest_t background_dest;
+        base_palette = (gfx->debug_flags & LAYER_BACKGROUND) ?
+            &gfx->debug_palettes[0] : &gfx->palette;
+
+        palette_decode(&palette, base_palette, ctx->mem.io.BGP);
 
         map_init(
-            &background_map, &ctx->mem,
+            &src, &ctx->mem,
             !BIT_ISSET(lcdc, R_LCDC_BG_TILE_MAP) ?
                 &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
             ctx->mem.io.SCX, screen_y + ctx->mem.io.SCY
         );
 
         dest_init(
-            &background_dest,
-            (pixel_t*)ctx->gfx.background->pixels,
+            &dest,
+            (pixel_t*)gfx->background->pixels,
             0, screen_y, SCREEN_WIDTH
         );
         
-        draw_tiles(&background_dest, &background_map, &palette);
+        draw_tiles(&dest, &src, &palette);
     }
     
     // Window
@@ -607,24 +625,26 @@ static void draw_line(context_t *ctx) {
     if (BIT_ISSET(lcdc, R_LCDC_WINDOW_ENABLED) && screen_y >= window_y &&
         window_x < SCREEN_WIDTH)
     {
-        map_t window_map;
-        dest_t window_dest;
+        base_palette = (gfx->debug_flags & LAYER_WINDOW) ?
+            &gfx->debug_palettes[1] : &gfx->palette;
+
+        palette_decode(&palette, base_palette, ctx->mem.io.BGP);
 
         map_init(
-            &window_map, &ctx->mem,
+            &src, &ctx->mem,
             !BIT_ISSET(lcdc, R_LCDC_WINDOW_TILE_MAP) ?
                 &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
-            window_x, screen_y + ctx->gfx.window_y
+            window_x, screen_y + gfx->window_y
         );
 
         dest_init(
-            &window_dest,
-            (pixel_t*)ctx->gfx.background->pixels,
+            &dest,
+            (pixel_t*)gfx->background->pixels,
             window_x, screen_y, SCREEN_WIDTH
         );
         
-        draw_tiles(&window_dest, &window_map, &palette);
-        ctx->gfx.window_y += 1;
+        draw_tiles(&dest, &src, &palette);
+        gfx->window_y += 1;
     }
     
     // Sprites
@@ -633,8 +653,11 @@ static void draw_line(context_t *ctx) {
         size_t sprite_height = BIT_ISSET(lcdc, R_LCDC_SPRITES_LARGE) ? 16 : 8;
         palette_t spp_high, spp_low;
 
-        palette_decode(&ctx->gfx.palette, &spp_high, ctx->mem.io.SPP_HIGH);
-        palette_decode(&ctx->gfx.palette, &spp_low, ctx->mem.io.SPP_LOW);
+        base_palette = (gfx->debug_flags & LAYER_SPRITES) ?
+            &gfx->debug_palettes[2] : &gfx->palette;
+
+        palette_decode(&spp_high, base_palette, ctx->mem.io.SPP_HIGH);
+        palette_decode(&spp_low, base_palette, ctx->mem.io.SPP_LOW);
         
         sprite_table_t sprites = { .length = 0 };
         
@@ -679,8 +702,8 @@ static void draw_line(context_t *ctx) {
             dest_init(
                 &dst,
                 sprite->in_background ?
-                    (pixel_t*)ctx->gfx.sprites_bg->pixels :
-                    (pixel_t*)ctx->gfx.sprites_fg->pixels,
+                    (pixel_t*)gfx->sprites_bg->pixels :
+                    (pixel_t*)gfx->sprites_fg->pixels,
                 sprite->x, sprite->y, SCREEN_WIDTH
             );
 
@@ -742,6 +765,20 @@ void graphics_draw_tile(const context_t* ctx, window_t* window,
 
         dest_init(&dst, pixels, x, y + tile_y, window->surface->w);
         source_init(&src, get_tile_data(&ctx->mem, tile_id), 0, tile_y);
-        draw_tile(&dst, &src, &ctx->gfx.debug_palette);
+        draw_tile(&dst, &src, &ctx->gfx.debug_palettes[0]);
     }
+}
+
+void graphics_toggle_debug(context_t* ctx, graphics_layer_t layer)
+{
+    if (ctx->gfx.debug_flags & layer) {
+        ctx->gfx.debug_flags |= ~layer;
+    } else {
+        ctx->gfx.debug_flags |= layer;
+    }
+}
+
+bool graphics_get_debug(const context_t* ctx, graphics_layer_t layer)
+{
+    return ctx->gfx.debug_flags & layer;
 }

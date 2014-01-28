@@ -5,18 +5,21 @@
 #include "debugger/commands.h"
 
 #define NUM(x) (sizeof(x) / sizeof(x[0]))
+#define CEIL(a, b) ((a + (b - 1)) / b)
 
 static void exec_next(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_pause(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_continue(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_frame(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_quit(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_help(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_list(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_breakpoint(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg);
-static void exec_viewtiles(const char* args, context_t* ctx,  debug_t* dbg);
-static void exec_viewmaps(const char* args, context_t* ctx,  debug_t* dbg);
+static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_layer(const char* args, context_t* ctx, debug_t* dbg);
 
 static const struct {
     command_t handler;
@@ -25,6 +28,7 @@ static const struct {
     { &exec_next, "next" },
     { &exec_pause, "pause" },
     { &exec_continue, "continue" },
+    { &exec_frame, "frame" },
     { &exec_quit, "quit" },
     { &exec_help, "help" },
     { &exec_list, "list" },
@@ -32,7 +36,8 @@ static const struct {
     { &exec_traceback, "traceback" },
     { &exec_print, "print" },
     { &exec_viewtiles, "viewtiles" },
-    { &exec_viewmaps, "viewmaps" }
+    { &exec_viewmaps, "viewmaps" },
+    { &exec_layer, "layer" }
 };
 
 bool execute_command(const char* command, context_t* ctx, debug_t* dbg)
@@ -105,6 +110,15 @@ static void exec_continue(const char* args, context_t* ctx, debug_t* dbg)
     context_resume_exec(ctx);
 }
 
+static void exec_frame(const char* args, context_t* ctx, debug_t* dbg)
+{
+    (void)args;
+    (void)dbg;
+
+    printf("Frame stepping.\n");
+    context_frame_step(ctx);
+}
+
 static void exec_quit(const char* args, context_t* ctx, debug_t* dbg)
 {
     (void)args;
@@ -175,8 +189,8 @@ static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg)
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg)
 {
     static const struct {
-        char* name;
-        size_t offset;
+        const char* name;
+        const size_t offset;
     } registers[] = {
         { "AF", offsetof(registers_t, AF) },
         { "BC", offsetof(registers_t, BC) },
@@ -225,7 +239,24 @@ static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
     (void)args;
     (void)ctx;
 
+    if (!dbg->show_tiles) {
+        dbg->window = graphics_create_window(
+            "Tiles",
+            (DBG_TILES_PER_ROW) * (TILE_WIDTH + 1),
+            CEIL(MAX_TILES, DBG_TILES_PER_ROW) * (TILE_HEIGHT + 1)
+        );
+
+        if (dbg->window == NULL) {
+            printf("Failed to create window\n");
+            return;
+        }
+    } else {
+        graphics_free_window(dbg->window);
+        dbg->window = NULL;
+    }
+
     dbg->show_tiles = !dbg->show_tiles;
+    
     printf("Toggling tile view.\n");
 }
 
@@ -245,4 +276,43 @@ static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg)
 
     // printf("High tile map:\n");
     // debug_print_map(&map);
+}
+
+static void exec_layer(const char* args, context_t* ctx, debug_t* dbg)
+{
+    static const struct {
+        const char* name;
+        const graphics_layer_t layer;
+    } layers[] = {
+        { "background", LAYER_BACKGROUND },
+        { "window", LAYER_WINDOW },
+        { "sprites", LAYER_SPRITES }
+    };
+
+    graphics_layer_t layer;
+    const char* name = NULL;
+    size_t arglen = strlen(args);
+
+    (void)dbg;
+
+    for (size_t i = 0; i < NUM(layers); i++) {
+        if (strncmp(layers[i].name, args, arglen) == 0) {
+            if (name != NULL) {
+                printf("Ambiguous layer, choices are:\n");
+                printf("\tbackground, window, sprites\n");
+                return;
+            }
+
+            name = layers[i].name;
+            layer = layers[i].layer;
+        }
+    }
+
+    if (name == NULL) {
+        printf("Invalid layer specified\n");
+        return;
+    }
+
+    printf("Toggled layer %s\n", name);
+    graphics_toggle_debug(ctx, layer);
 }

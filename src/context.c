@@ -129,12 +129,12 @@ bool context_run(context_t* ctx)
             }
 
 #if defined(DEBUG)
-            if (ctx->single_step)
+            if (ctx->stopflags & STOP_STEP)
             {
-                ctx->state = STOPPED;
-                ctx->single_step = false;
+                ctx->state = SINGLE_STEPPED;
+                ctx->stopflags &= ~STOP_STEP;
             } else if (pl_check(&ctx->breakpoints, ctx->cpu.PC)) {
-                ctx->state = STOPPED;
+                ctx->state = BREAKPOINT;
             }
 #endif
 
@@ -206,7 +206,13 @@ void context_pause_exec(context_t* ctx)
 void context_single_step(context_t* ctx)
 {
     ctx->state = RUNNING;
-    ctx->single_step = true;
+    ctx->stopflags |= STOP_STEP;
+}
+
+void context_frame_step(context_t* ctx)
+{
+    ctx->state = RUNNING;
+    ctx->stopflags |= STOP_FRAME;
 }
 
 execution_state_t context_get_exec(context_t* ctx)

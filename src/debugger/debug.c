@@ -3,29 +3,17 @@
 
 #include "debugger/debug.h"
 
-#define CEIL(a, b) ((a + (b - 1)) / b)
-
 bool debug_init(debug_t* dbg)
 {
     memset(dbg->commandline, 0, sizeof dbg->commandline);
-
-    dbg->window = graphics_create_window(
-        "Tile DBG",
-        (DBG_TILES_PER_ROW) * (TILE_WIDTH + 1),
-        CEIL(MAX_TILES, DBG_TILES_PER_ROW) * (TILE_HEIGHT + 1)
-    );
-
-    if (dbg->window == NULL) {
-        printf("Failed to create window\n");
-        return false;
-    }
-
     return true;
 }
 
 void debug_free(debug_t *dbg)
 {
-    graphics_free_window(dbg->window);
+    if (dbg->window != NULL) {
+        graphics_free_window(dbg->window);
+    }
 }
 
 void debug_draw_tiles(const context_t* ctx, debug_t* dbg)

@@ -38,12 +38,11 @@ typedef struct gfx {
     // Current state.
     gfx_state_t  state;
     
-    bool frame_rendered;
-    
     window_t window;
 
     palette_t palette;
-    palette_t debug_palette;
+    palette_t debug_palettes[3];
+    int debug_flags;
 
     SDL_Surface* sprites_bg;
     SDL_Surface* sprites_fg;

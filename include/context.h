@@ -16,6 +16,11 @@
 #define CYCLES_PER_FRAME (70886)
 #define TICKS_PER_FRAME (17)
 
+typedef enum stopflags {
+    STOP_STEP = 1,
+    STOP_FRAME = 2,
+} stopflags_t;
+
 struct context {
     // CPU
     cpu_t cpu;
@@ -41,12 +46,12 @@ struct context {
     
     execution_state_t state;
     bool running;
-    bool single_step;
 
 #if defined(DEBUG)
     circular_buffer* logs;
     circular_buffer* traceback;
     prob_list_t breakpoints;
+    int stopflags;
 #endif
 
     update_func_t update_func;
