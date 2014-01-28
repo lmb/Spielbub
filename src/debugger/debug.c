@@ -35,7 +35,7 @@ void debug_print_func(const context_t* ctx, uint16_t addr)
 
     do {
         size_t len = context_decode_instruction(ctx, addr, buffer, sizeof buffer);
-        printf("%04x: %s\n", addr, buffer);
+        printf("%04Xh: %s\n", addr, buffer);
         addr += len;
     } while (strncmp(buffer, "RET", 3) != 0 || count++ < 20);
 }
@@ -44,7 +44,7 @@ void debug_print_addr(const context_t* ctx, uint16_t addr)
 {
     char buffer[256] = "";
     context_decode_instruction(ctx, addr, buffer, sizeof buffer);
-    printf("%04x: %s\n", addr, buffer);
+    printf("%04Xh: %s\n", addr, buffer);
 }
 
 void debug_print_pc(context_t* ctx)

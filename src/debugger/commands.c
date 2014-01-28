@@ -17,6 +17,7 @@ static void exec_list(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_breakpoint(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_registers(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_layer(const char* args, context_t* ctx, debug_t* dbg);
@@ -35,6 +36,7 @@ static const struct {
     { &exec_breakpoint, "breakpoint" },
     { &exec_traceback, "traceback" },
     { &exec_print, "print" },
+    { &exec_registers, "registers" },
     { &exec_viewtiles, "viewtiles" },
     { &exec_viewmaps, "viewmaps" },
     { &exec_layer, "layer" }
@@ -188,36 +190,17 @@ static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg)
 
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg)
 {
-    static const struct {
-        const char* name;
-        const size_t offset;
-    } registers[] = {
-        { "AF", offsetof(registers_t, AF) },
-        { "BC", offsetof(registers_t, BC) },
-        { "DE", offsetof(registers_t, DE) },
-        { "HL", offsetof(registers_t, HL) },
-        { "SP", offsetof(registers_t, SP) },
-        { "PC", offsetof(registers_t, PC) }
-    };
-
     uint16_t value, len;
-    registers_t regs;
 
     (void)dbg;
 
-    context_get_registers(ctx, &regs);
+    if (sscanf(args, "%hx:%hx", &value, &len) != 2) {
+        len = 1;
 
-    for (size_t i = 0; i < NUM(registers); i++) {
-        if (strcmp(args, registers[i].name) == 0) {
-            value = *((uint16_t*)(((uint8_t*)&regs) + registers[i].offset));
-            printf("%s = %04x\n", registers[i].name, value);
+        if (sscanf(args, "%hx", &value) != 1) {
+            printf("Please specify <addr>(:<len>)\n");
             return;
         }
-    }
-
-    if (sscanf(args, "%hx:%hx", &value, &len) != 2) {
-        printf("Please specify a register <AF|BC|DE|HL|SP|PC> or <addr:len>\n");
-        return;
     }
 
     uint8_t buffer[len];
@@ -232,6 +215,30 @@ static void exec_print(const char* args, context_t* ctx, debug_t* dbg)
     }
 
     printf("\n");
+}
+
+static void exec_registers(const char* args, context_t* ctx, debug_t* dbg)
+{
+    registers_t regs;
+
+    (void)args;
+    (void)dbg;
+
+    context_get_registers(ctx, &regs);
+
+    printf("   AF = %04Xh, BC = %04Xh, DE = %04Xh, HL = %04Xh\n",
+        regs.AF, regs.BC, regs.DE, regs.HL);
+    printf("   PC = %04Xh, SP = %04Xh\n", regs.PC, regs.SP);
+
+    char Z, N, C, H;
+    uint8_t F = regs.AF & 0xF;
+
+    Z = F & 0x80 ? 'Z' : '-';
+    N = F & 0x40 ? 'N' : '-';
+    C = F & 0x20 ? 'C' : '-';
+    H = F & 0x10 ? 'H' : '-';
+
+    printf ("   Flags: %c%c%c%c\n", Z, N, H, C);
 }
 
 static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
