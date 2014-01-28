@@ -1,5 +1,3 @@
-
-
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -164,6 +162,10 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
     // Take care of special behaviour and
     // certain read-only registers.
     switch (addr) {
+        case R_LY:
+            mem->io.LY = 0;
+            return;
+
         case R_DIV:
             // Writing to the Divider Register resets it to zero,
             // regardless of value.

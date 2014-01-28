@@ -4,7 +4,6 @@
 #include <stdbool.h>
 
 #include "spielbub.h"
-#include "hardware.h"
 
 #if defined(DEBUG)
 #include "probability_list.h"

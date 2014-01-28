@@ -3,10 +3,17 @@
 
 #include "debugger/debug.h"
 
+#define CEIL(a, b) ((a + (b - 1)) / b)
+
 bool debug_init(debug_t* dbg)
 {
     memset(dbg->commandline, 0, sizeof dbg->commandline);
-    // dbg->window = graphics_create_window("Tile DBG", 256, 256);
+
+    dbg->window = graphics_create_window(
+        "Tile DBG",
+        (DBG_TILES_PER_ROW) * (TILE_WIDTH + 1),
+        CEIL(MAX_TILES, DBG_TILES_PER_ROW) * (TILE_HEIGHT + 1)
+    );
 
     if (dbg->window == NULL) {
         printf("Failed to create window\n");
@@ -18,20 +25,31 @@ bool debug_init(debug_t* dbg)
 
 void debug_free(debug_t *dbg)
 {
-    (void)dbg;
+    graphics_free_window(dbg->window);
+}
 
-    // graphics_free_window(dbg->window);
+void debug_draw_tiles(const context_t* ctx, debug_t* dbg)
+{
+    for (size_t i = 0; i < MAX_TILES; i++) {
+        size_t x = (i % DBG_TILES_PER_ROW) * (TILE_WIDTH + 1);
+        size_t y = (i / DBG_TILES_PER_ROW) * (TILE_HEIGHT + 1);
+
+        graphics_draw_tile(ctx, dbg->window, i, x, y);
+    }
+
+    graphics_draw_window(dbg->window);
 }
 
 void debug_print_func(const context_t* ctx, uint16_t addr)
 {
     char buffer[256] = "";
+    size_t count = 0;
 
     do {
         size_t len = context_decode_instruction(ctx, addr, buffer, sizeof buffer);
         printf("%04x: %s\n", addr, buffer);
         addr += len;
-    } while (strncmp(buffer, "RET", 3) != 0);
+    } while (strncmp(buffer, "RET", 3) != 0 || count++ < 20);
 }
 
 void debug_print_addr(const context_t* ctx, uint16_t addr)

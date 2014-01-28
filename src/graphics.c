@@ -3,17 +3,11 @@
 #include "context.h"
 
 #include "ioregs.h"
-#include "hardware.h"
 #include "logging.h"
 
 typedef struct tile {
     uint8_t lines[TILE_HEIGHT][2];
 } tile_t;
-
-typedef enum tile_data {
-    TILE_DATA_HIGH,
-    TILE_DATA_LOW
-} tile_data_t;
 
 typedef struct dest {
     pixel_t* data;
@@ -54,6 +48,14 @@ static void set_mode(context_t *ctx, gfx_state_t state)
         cpu_irq(ctx, I_LCDC);
 }
 
+static SDL_Surface* surface_create(int w, int h)
+{
+    return SDL_CreateRGBSurface(
+        0, w, h, 16,
+        0x0F00, 0x00F0, 0x000F, 0xF000
+    );
+}
+
 static void window_destroy(window_t* window);
 
 static bool window_init(window_t* window, const char name[], int w, int h)
@@ -87,6 +89,12 @@ static bool window_init(window_t* window, const char name[], int w, int h)
         goto error;
     }
 
+    window->surface = surface_create(w, h);
+
+    if (window->surface == NULL) {
+        goto error;
+    }
+
     return true;
 
     error: {
@@ -111,6 +119,20 @@ void window_destroy(window_t* window)
         SDL_DestroyTexture(window->texture);
         window->texture = NULL;
     }
+
+    if (window->surface != NULL) {
+        SDL_FreeSurface(window->surface);
+        window->surface = NULL;
+    }
+}
+
+void graphics_draw_window(window_t* window)
+{
+    SDL_UpdateTexture(window->texture, NULL,
+        window->surface->pixels, window->surface->pitch);
+    SDL_RenderClear(window->renderer);
+    SDL_RenderCopy(window->renderer, window->texture, NULL, NULL);
+    SDL_RenderPresent(window->renderer);
 }
 
 bool graphics_init(gfx_t* gfx)
@@ -126,29 +148,39 @@ bool graphics_init(gfx_t* gfx)
     }
 
 #define INIT_SURFACE(x) do { \
-        x = SDL_CreateRGBSurface( \
-            0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, \
-            0x0F00, 0x00F0, 0x000F, 0xF000 \
-        ); \
+        x = surface_create(SCREEN_WIDTH, SCREEN_HEIGHT); \
         if (x == NULL) { \
             goto error; \
         } \
     } while(0)
-    INIT_SURFACE(gfx->screen);
     INIT_SURFACE(gfx->background);
     INIT_SURFACE(gfx->sprites_bg);
     INIT_SURFACE(gfx->sprites_fg);
 #undef INIT_SURFACE
 
     gfx->palette.colors[0] =
-        SDL_MapRGBA(gfx->screen->format, 0x00, 0x00, 0x00, 0x00);
+        SDL_MapRGBA(gfx->background->format, 0x00, 0x00, 0x00, 0x00);
+    gfx->palette.colors[1] =
+        SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
+    gfx->palette.colors[2] =
+        SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
+    gfx->palette.colors[3] =
+        SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
 
-    gfx->palette.colors[1] = SDL_MapRGB(gfx->screen->format, 0xCC, 0xCC, 0xCC);
-    gfx->palette.colors[2] = SDL_MapRGB(gfx->screen->format, 0x77, 0x77, 0x77);
-    gfx->palette.colors[3] = SDL_MapRGB(gfx->screen->format, 0x00, 0x00, 0x00);
+    gfx->debug_palette.colors[0] =
+        SDL_MapRGB(gfx->background->format, 0xFF, 0x14, 0x93);
+    gfx->debug_palette.colors[1] =
+        SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
+    gfx->debug_palette.colors[2] =
+        SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
+    gfx->debug_palette.colors[3] =
+        SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
 
-    gfx->screen_white = SDL_MapRGBA(gfx->screen->format, 0xFF, 0xFF, 0xFF, 0xFF);
+    gfx->screen_white = SDL_MapRGBA(gfx->background->format, 0xFF, 0xFF, 0xFF, 0xFF);
     gfx->state = OAM;
+
+    SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
+    graphics_draw_window(&gfx->window);
 
     return true;
 
@@ -162,11 +194,6 @@ void graphics_destroy(gfx_t *gfx)
 {
     if (gfx != NULL) {
         window_destroy(&gfx->window);
-
-        if (gfx->screen != NULL) {
-            SDL_FreeSurface(gfx->screen);
-            gfx->screen = NULL;
-        }
 
         if (gfx->background != NULL) {
             SDL_FreeSurface(gfx->background);
@@ -212,7 +239,7 @@ void graphics_free_window(window_t* window)
 
 bool graphics_lock(context_t *ctx)
 {
-    if (SDL_LockSurface(ctx->gfx.screen) < 0)
+    if (SDL_LockSurface(ctx->gfx.window.surface) < 0)
     {
         log_dbg(ctx, "Can not lock surface: %s", SDL_GetError());
         return false;
@@ -223,7 +250,7 @@ bool graphics_lock(context_t *ctx)
 
 void graphics_unlock(context_t *ctx)
 {
-    SDL_UnlockSurface(ctx->gfx.screen);
+    SDL_UnlockSurface(ctx->gfx.window.surface);
 }
 
 /*
@@ -241,7 +268,7 @@ void graphics_update(context_t *ctx, int cycles)
     if (!BIT_ISSET(ctx->mem.io.LCDC, R_LCDC_ENABLED))
     {
         // LCD is disabled.
-        mem_write(&ctx->mem, R_LY, 144);
+        ctx->mem.io.LY = 144;
         ctx->gfx.state = VBLANK_WAIT;
         ctx->gfx.cycles = 0;
 
@@ -261,10 +288,10 @@ void graphics_update(context_t *ctx, int cycles)
                 // The LCD just finished displaying a
                 // line R_LY, which matches R_LYC.
                 BIT_SET(*r_stat, R_STAT_LY_COINCIDENCE);
-                if (BIT_ISSET(*r_stat, R_STAT_LYC_ENABLE))
+                if (BIT_ISSET(*r_stat, R_STAT_LYC_ENABLE)) {
                     cpu_irq(ctx, I_LCDC);
-            }
-            else {
+                }
+            } else {
                 BIT_RESET(*r_stat, R_STAT_LY_COINCIDENCE);
             }
 
@@ -293,7 +320,7 @@ void graphics_update(context_t *ctx, int cycles)
             if (gfx->cycles >= 204)
             {
                 gfx->cycles -= 204;
-                if (ctx->mem.io.LY == 14)
+                if (ctx->mem.io.LY == 144)
                 {
                     set_mode(ctx, VBLANK);
                 }
@@ -306,16 +333,12 @@ void graphics_update(context_t *ctx, int cycles)
 
         case VBLANK:
         {
-            SDL_FillRect(gfx->screen, NULL, gfx->screen_white);
-            SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->screen, NULL);
-            SDL_BlitSurface(gfx->background, NULL, gfx->screen, NULL);
-            SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->screen, NULL);
-            
-            SDL_UpdateTexture(gfx->window.texture, NULL, gfx->screen->pixels,
-                gfx->screen->pitch);
-            SDL_RenderClear(gfx->window.renderer);
-            SDL_RenderCopy(gfx->window.renderer, gfx->window.texture, NULL, NULL);
-            SDL_RenderPresent(gfx->window.renderer);
+            SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
+            SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->window.surface, NULL);
+            SDL_BlitSurface(gfx->background, NULL, gfx->window.surface, NULL);
+            SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->window.surface, NULL);
+
+            graphics_draw_window(&gfx->window);
             
             // Make overlays transparent again
             SDL_FillRect(gfx->sprites_bg, NULL, gfx->palette.colors[0]);
@@ -331,12 +354,11 @@ void graphics_update(context_t *ctx, int cycles)
         case VBLANK_WAIT:
             if (gfx->cycles >= 456)
             {
-                uint8_t* r_ly = &ctx->mem.io.LY;
                 gfx->cycles -= 456;
                 
-                if ((*r_ly)++ == 153)
+                if (ctx->mem.io.LY++ == 153)
                 {
-                    *r_ly = 0;
+                    ctx->mem.io.LY = 0;
                     set_mode(ctx, OAM);
                     gfx->frame_rendered = true;
                 }
@@ -349,9 +371,11 @@ static void
 dest_init(dest_t* dst, pixel_t* pixels, size_t x, size_t y,
     size_t w)
 {
-    assert(x < w);
+    if (x >= w) {
+        assert(x < w);
+    }
 
-    dst->data = pixels + (y + w) + x;
+    dst->data = pixels + (y * w) + x;
     dst->remaining = w - x;
 }
 
@@ -364,21 +388,17 @@ source_init(source_t *src, const tile_t* tile, size_t x, size_t y)
 }
 
 static void
-map_init(map_t* map, const memory_t* mem,
-    const uint8_t (*ids)[MAP_ROWS][MAP_COLUMNS], size_t x, size_t y)
+map_init(map_t* map, const memory_t* mem, const tile_map_t* ids, size_t x,
+    size_t y)
 {
     x %= MAP_WIDTH;
     y %= MAP_HEIGHT;
 
     size_t row = y / TILE_HEIGHT;
 
-    if (!BIT_ISSET(mem->io.LCDC, R_LCDC_TILE_DATA)) {
-        map->signed_ids = false;
-    } else {
-        map->signed_ids = true;
-    }
+    map->signed_ids = !BIT_ISSET(mem->io.LCDC, R_LCDC_TILE_DATA);
 
-    map->ids   = ids[row];
+    map->ids   = &(*ids)[row];
     map->tiles = (tile_t*)mem->gfx.tiles;
 
     map->col    = x / TILE_WIDTH;
@@ -387,15 +407,15 @@ map_init(map_t* map, const memory_t* mem,
 }
 
 static void
-map_next(map_t *map, source_t* src)
+map_next(map_t* map, source_t* src)
 {
-    uint16_t id = (uint16_t)map->ids[map->col];
+    uint16_t id = (*map->ids)[map->col];
 
     if (map->signed_ids) {
         id = 256 + (int8_t)id;
     }
 
-    assert(id <= MAX_TILES);
+    assert(id < MAX_TILES);
 
     map->col = (map->col + 1) % MAP_COLUMNS;
 
@@ -431,7 +451,7 @@ palette_decode(const palette_t* restrict base_palette,
 static void
 sprite_decode(sprite_t *sprite, const uint8_t *data)
 {
-#define MAX(a, b) (a) > (b) ? (a) : (b)
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
     sprite->y      = MAX(0, data[0] - SPRITE_HEIGHT);
     sprite->x      = MAX(0, data[1] - SPRITE_WIDTH);
     sprite->tile_y = MAX(0, SPRITE_HEIGHT - data[0]);
@@ -520,51 +540,6 @@ draw_tile(dest_t* restrict dst, const source_t* restrict src,
     dst->remaining -= num;
 }
 
-// int draw_tile(const gfx_t *gfx, SDL_Surface *screen, tile_id_t tile_id,
-//     uint8_t palette, int screen_x, int screen_y, int tile_x, int tile_y,
-//     bool transparent)
-// {
-//     assert(screen_x < SCREEN_WIDTH);
-//     assert(screen_y < SCREEN_HEIGHT);
-    
-//     uint16_t* pixels = (uint16_t*)(screen->pixels + (screen_y + screen->pitch));
-//     pixels += screen_x;
-    
-//     tile += tile_y;
-    
-//     int step;
-    
-//     if (tile_x < 0) {
-//         tile_x *= -1;
-//         step = -1;
-//     } else {
-//         step = 1;
-//     }
-    
-//     for (int i = tile_x; i >= 0 && i < TILE_WIDTH; i += step)
-//     {
-//         if (screen_x + i >= SCREEN_WIDTH) {
-//             continue;
-//         }
-        
-//         int index = (*tile) & (0x8080 >> i); // Get bit 16-i and 8-i
-//         index >>= 7 - i;                     // Right align
-//         index = index % 254;                 // Get rid of bits 7 to 1
-//         // index now holds a number between 0 and 3
-//         // Double the result to get the number of times we have to left shift below.
-//         index <<= 1;
-        
-//         int color = ((palette & (0x3 << index)) >> index);
-        
-//         if (color != 0 || !transparent) {
-//             *pixels = gfx->palette[color];
-//         }
-//         pixels++;
-//     }
-    
-//     return TILE_WIDTH - tile_x;
-// }
-
 static void
 draw_tiles(dest_t* restrict dst, const map_t* restrict map,
     const palette_t* restrict palette)
@@ -580,58 +555,6 @@ draw_tiles(dest_t* restrict dst, const map_t* restrict map,
         draw_tile(dst, &src, palette);
     }
 }
-
-// void draw_bg_line(const context_t *ctx, int screen_x, int screen_y,
-//     int offset_x, int offset_y, int8_t palette, tile_map_t tile_map, tile_data_t tile_data)
-// {
-//     // Only a 160x144 "cutout" of the background is shown on the screen.
-//     // If the y-offset r_scy pushes this cutout off the screen it wraps
-//     // around.
-//     int bg_y = (screen_y + offset_y) % MAP_HEIGHT;
-    
-//     // Since bg_y doesn't necessarily start at a tile boundary, we have
-//     // to calculate at which y coordinate we are within a tile.
-//     int tile_y = bg_y % 8;
-    
-//     while (screen_x < SCREEN_WIDTH)
-//     {
-//         // These calculations are analogous to bg_y et al above.
-//         int bg_x   = (screen_x + offset_x) % MAP_WIDTH;
-//         int tile_x = bg_x % 8;
-        
-//         uint8_t tile_id = _get_tile_id(&ctx->mem, bg_x, bg_y, tile_map);
-//         uint16_t* tile = _get_tile_data(&ctx->mem, tile_id, tile_data);
-        
-//         // Every line is 2 bytes
-//         screen_x += _put_tile_line(&ctx->gfx, ctx->gfx.background, tile, palette,
-//             screen_x, screen_y, tile_x, tile_y, false);
-//     }
-// }
-
-// void _draw_sprite_line(context_t *ctx, sprite_t sprite, int screen_y)
-// {
-//     int sprite_y = screen_y - (sprite.y - SPRITE_HEIGHT);
-//     int screen_x = sprite.x - SPRITE_WIDTH;
-    
-//     SDL_Surface *surface;
-    
-//     if (screen_x >= 160) {
-//         // Off-screen sprites are simply ignored.
-//         return;
-//     }
-    
-//     surface = BIT_ISSET(sprite.flags, SPRITE_F_TRANSLUCENT) ? ctx->gfx.sprites_bg : ctx->gfx.sprites_fg;
-    
-//     uint16_t palette = BIT_ISSET(sprite.flags, SPRITE_F_HIGH_PALETTE) ? R_SPP_HIGH : R_SPP_LOW;
-//     palette = ctx->mem.map[palette];
-    
-//     int sprite_x = BIT_ISSET(sprite.flags, SPRITE_F_X_FLIP) ? -7 : 0;
-    
-//     uint16_t* tile = _get_tile_data(&ctx->mem, sprite.tile_id, TILE_DATA_LOW);
-    
-//     _put_tile_line(&ctx->gfx, surface, tile, palette, screen_x, screen_y, sprite_x,
-//         sprite_y, true);
-// }
 
 static const tile_t*
 get_tile_data(const memory_t *mem, uint16_t tile_id)
@@ -662,7 +585,8 @@ static void draw_line(context_t *ctx) {
 
         map_init(
             &background_map, &ctx->mem,
-            !BIT_ISSET(lcdc, R_LCDC_BG_TILE_MAP) ? &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
+            !BIT_ISSET(lcdc, R_LCDC_BG_TILE_MAP) ?
+                &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
             ctx->mem.io.SCX, screen_y + ctx->mem.io.SCY
         );
 
@@ -688,7 +612,8 @@ static void draw_line(context_t *ctx) {
 
         map_init(
             &window_map, &ctx->mem,
-            !BIT_ISSET(lcdc, R_LCDC_WINDOW_TILE_MAP) ? &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
+            !BIT_ISSET(lcdc, R_LCDC_WINDOW_TILE_MAP) ?
+                &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
             window_x, screen_y + ctx->gfx.window_y
         );
 
@@ -713,7 +638,7 @@ static void draw_line(context_t *ctx) {
         
         sprite_table_t sprites = { .length = 0 };
         
-        for (int i = 0; i < OAM_ENTRIES; i++)
+        for (int i = 0; i < MAX_SPRITES; i++)
         {
             sprite_t sprite;
             sprite_decode(&sprite, ctx->mem.gfx.oam[i]);
@@ -737,6 +662,10 @@ static void draw_line(context_t *ctx) {
             const sprite_t* sprite = &sprites.data[i];
             source_t src;
             dest_t dst;
+
+            if (sprite->x >= SCREEN_WIDTH) {
+                continue;
+            }
 
             uint16_t tile_id = (sprite->y < TILE_HEIGHT) ?
                 (sprite->tile_id & 0xFE) : (sprite->tile_id | 0x01);
@@ -771,9 +700,9 @@ static void draw_line(context_t *ctx) {
 void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
 {
     int i;
-    
+
     assert(table != NULL);
-    
+
     if (table->length == 0)
     {
         table->data[0] = *sprite;
@@ -781,14 +710,14 @@ void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
         
         return;
     }
-    
+
     // Bail out if last (tenth) element is lower than element to be inserted
     if (table->length == SPRITES_PER_LINE &&
         table->data[SPRITES_PER_LINE - 1].x < sprite->x)
     {
         return;
     }
-    
+
     i = (table->length >= SPRITES_PER_LINE - 1 ) ?
         SPRITES_PER_LINE - 1 : table->length;
 
@@ -797,18 +726,22 @@ void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
         table->data[i] = table->data[i - 1];
         i--;
     }
-    
+
     table->data[i] = *sprite;
     table->length += 1;
 }
 
-void graphics_render_tile(const context_t* ctx, uint16_t tile_id, pixel_t* pixels)
+void graphics_draw_tile(const context_t* ctx, window_t* window,
+    uint16_t tile_id, size_t x, size_t y)
 {
-    for (size_t y = 0; y < TILE_HEIGHT; y++) {
+    pixel_t* pixels = (pixel_t*)window->surface->pixels;
+
+    for (size_t tile_y = 0; tile_y < TILE_HEIGHT; tile_y++) {
         source_t src;
         dest_t dst;
 
-        dest_init(&dst, pixels + (y * TILE_WIDTH), 0, y, TILE_WIDTH);
-        source_init(&src, get_tile_data(&ctx->mem, tile_id), 0, y);
+        dest_init(&dst, pixels, x, y + tile_y, window->surface->w);
+        source_init(&src, get_tile_data(&ctx->mem, tile_id), 0, tile_y);
+        draw_tile(&dst, &src, &ctx->gfx.debug_palette);
     }
 }

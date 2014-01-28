@@ -4,7 +4,10 @@
 #include <SDL2/SDL.h>
 
 #include "spielbub.h"
-#include "hardware.h"
+
+#define SPRITES_PER_LINE (10)
+#define MAP_WIDTH (256)
+#define MAP_HEIGHT (256)
 
 typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
@@ -21,6 +24,7 @@ struct window {
     SDL_Window*   window;
     SDL_Renderer* renderer;
     SDL_Texture*  texture;
+    SDL_Surface*  surface;
 };
 
 typedef struct gfx {
@@ -39,8 +43,8 @@ typedef struct gfx {
     window_t window;
 
     palette_t palette;
+    palette_t debug_palette;
 
-    SDL_Surface* screen;
     SDL_Surface* sprites_bg;
     SDL_Surface* sprites_fg;
     SDL_Surface* background;
@@ -71,7 +75,5 @@ bool graphics_lock(context_t *ctx);
 void graphics_unlock(context_t *ctx);
 void graphics_update(context_t *ctx, int cycles);
 void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite);
-// TODO: Const this?
-//void grapics_debug_tiles(context_t *context);
 
 #endif//__GRAPHICS_H__

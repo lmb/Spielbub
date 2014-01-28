@@ -3,6 +3,8 @@
 
 #include "spielbub.h"
 
+#define CLOCKSPEED (4194304)
+
 typedef struct timers {
     unsigned int divider_cycles;
     unsigned int timer_cycles;

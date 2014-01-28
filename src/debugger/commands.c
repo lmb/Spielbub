@@ -15,6 +15,8 @@ static void exec_list(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_breakpoint(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_viewtiles(const char* args, context_t* ctx,  debug_t* dbg);
+static void exec_viewmaps(const char* args, context_t* ctx,  debug_t* dbg);
 
 static const struct {
     command_t handler;
@@ -28,7 +30,9 @@ static const struct {
     { &exec_list, "list" },
     { &exec_breakpoint, "breakpoint" },
     { &exec_traceback, "traceback" },
-    { &exec_print, "print" }
+    { &exec_print, "print" },
+    { &exec_viewtiles, "viewtiles" },
+    { &exec_viewmaps, "viewmaps" }
 };
 
 bool execute_command(const char* command, context_t* ctx, debug_t* dbg)
@@ -214,4 +218,31 @@ static void exec_print(const char* args, context_t* ctx, debug_t* dbg)
     }
 
     printf("\n");
+}
+
+static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
+{
+    (void)args;
+    (void)ctx;
+
+    dbg->show_tiles = !dbg->show_tiles;
+    printf("Toggling tile view.\n");
+}
+
+static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg)
+{
+    tile_map_t map;
+
+    (void)args;
+    (void)dbg;
+
+    context_get_map(ctx, &map, TILE_MAP_LOW);
+
+    // print("Low tile map:\n");
+    // debug_print_map(&map);
+
+    // context_get_map(ctx, &map, TILE_MAP_HIGH);
+
+    // printf("High tile map:\n");
+    // debug_print_map(&map);
 }

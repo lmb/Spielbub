@@ -1,6 +1,5 @@
 #include "context.h"
 
-#include "hardware.h"
 #include "ioregs.h"
 
 #define DIVIDER_FREQUENCY (16384)

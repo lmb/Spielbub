@@ -577,12 +577,14 @@ END_TEST
 
 START_TEST (test_mem_locations)
 {
+    fail_unless(offsetof(memory_t, io) == 0);
     fail_unless(offsetof(memory_io_t, JOYPAD) == 0xFF00);
     fail_unless(offsetof(memory_io_t, DIV) == 0xFF04);
     fail_unless(offsetof(memory_io_t, IF) == 0xFF0F);
     fail_unless(offsetof(memory_io_t, LCDC) == 0xFF40);
     fail_unless(offsetof(memory_io_t, IE) == 0xFFFF);
 
+    fail_unless(offsetof(memory_t, gfx) == 0);
     fail_unless(offsetof(memory_gfx_t, tiles) == 0x8000);
     fail_unless(offsetof(memory_gfx_t, map_low) == 0x9800);
     fail_unless(offsetof(memory_gfx_t, map_high) == 0x9C00);

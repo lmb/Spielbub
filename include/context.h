@@ -13,6 +13,9 @@
 
 #include "buffers.h"
 
+#define CYCLES_PER_FRAME (70886)
+#define TICKS_PER_FRAME (17)
+
 struct context {
     // CPU
     cpu_t cpu;

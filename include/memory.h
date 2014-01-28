@@ -5,7 +5,8 @@
 
 #include "spielbub.h"
 #include "rom.h"
-#include "hardware.h"
+
+#define SPRITE_SIZE (4)
 
 typedef struct memory memory_t;
 
@@ -55,10 +56,10 @@ typedef struct memory_io {
 typedef struct memory_gfx {
     uint8_t __pad0[0x8000];
     uint8_t tiles[0x1800];
-    uint8_t map_low[MAP_ROWS][MAP_COLUMNS];
-    uint8_t map_high[MAP_ROWS][MAP_COLUMNS];
+    tile_map_t map_low;
+    tile_map_t map_high;
     uint8_t __pad1[0x5E00];
-    uint8_t oam[OAM_ENTRIES][OAM_ENTRY_SIZE];
+    uint8_t oam[MAX_SPRITES][SPRITE_SIZE];
 } memory_gfx_t;
 
 struct memory {

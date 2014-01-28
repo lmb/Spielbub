@@ -62,6 +62,10 @@ void update(context_t* ctx, debug_t *dbg)
     }
 
     state = context_get_exec(ctx);
+
+    if (dbg->show_tiles) {
+        debug_draw_tiles(ctx, dbg);
+    }
 }
 
 int main(int argc, const char* argv[])
