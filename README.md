@@ -21,8 +21,13 @@ What do I need to compile it?
 Compilation has only been tested on OS X, your mileage may vary on other OS. Unixes should be fine though. You'll need the following libraries to compile:
 
 * libsdl
-* libzmq
 
-`./configure && make && ./spielbub <rom.bin>` should do the trick.
+### Building
+
+```bash
+# premake4 gmake
+# make
+# ./Spielbub <rom.bin>
+```
 
 Good luck.
