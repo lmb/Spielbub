@@ -772,7 +772,7 @@ void graphics_draw_tile(const context_t* ctx, window_t* window,
 void graphics_toggle_debug(context_t* ctx, graphics_layer_t layer)
 {
     if (ctx->gfx.debug_flags & layer) {
-        ctx->gfx.debug_flags |= ~layer;
+        ctx->gfx.debug_flags &= ~layer;
     } else {
         ctx->gfx.debug_flags |= layer;
     }
