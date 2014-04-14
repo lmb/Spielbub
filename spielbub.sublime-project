@@ -1,0 +1,29 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": ["obj"],
+			"file_exclude_patterns": ["*.make","dump","tests",
+				"*.sublime-workspace", "Makefile", "*.gb"]
+		}
+	],
+	"build_systems":
+	[
+		{
+			"name": "Premake",
+			"cmd": ["make"],
+			"working_dir": "${project_path}",
+			"file_regex": "^(.+):([0-9]+):[0-9]+: .*?$",
+
+			"variants": [
+				{
+					"name": "Run",
+					"cmd": ["./tests"],
+					"working_dir": "${project_path}",
+					"file_regex": "> (.+?):([0-9]+): .*?$"
+				}
+			]
+		}
+	]
+}
