@@ -6,6 +6,7 @@
 #include "logging.h"
 
 #define NUM(x) (sizeof x / sizeof x[0])
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct tile {
     uint8_t lines[TILE_HEIGHT][2];
@@ -382,15 +383,13 @@ void graphics_update(context_t *ctx, int cycles)
 }
 
 static void
-dest_init(dest_t* dst, pixel_t* pixels, size_t x, size_t y,
-    size_t w)
+dest_init(dest_t* dst, SDL_Surface* surface, size_t x, size_t y, size_t num)
 {
-    if (x >= w) {
-        assert(x < w);
-    }
+    size_t max_pixels = ((size_t)surface->w) - x;
+    assert(y < (size_t)surface->h);
 
-    dst->data = pixels + (y * w) + x;
-    dst->remaining = w - x;
+    dst->data = ((pixel_t*)surface->pixels) + (y * surface->w) + x;
+    dst->remaining = MIN(num, max_pixels);
 }
 
 static void
@@ -463,7 +462,8 @@ palette_decode(palette_t* restrict palette,
 }
 
 static void
-sprite_decode(sprite_t *sprite, const uint8_t *data)
+sprite_decode(sprite_t *sprite, const uint8_t* data, const palette_t* high,
+    const palette_t* low)
 {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
     sprite->y      = MAX(0, data[0] - SPRITE_HEIGHT);
@@ -471,14 +471,17 @@ sprite_decode(sprite_t *sprite, const uint8_t *data)
     sprite->tile_y = MAX(0, SPRITE_HEIGHT - data[0]);
     sprite->tile_x = MAX(0, SPRITE_WIDTH - data[1]);
 
-    sprite->tile_id = data[2];
+    sprite->tile_id = (sprite->tile_y < TILE_HEIGHT) ?
+        (data[2] & 0xFE) : (data[2] | 0x01);
+    sprite->tile_y %= TILE_HEIGHT;
+
     sprite->visible = sprite->tile_x < SPRITE_WIDTH
         && sprite->tile_y < SPRITE_HEIGHT;
 
     sprite->in_background = BIT_ISSET(data[2], 7);
     sprite->flip_y = BIT_ISSET(data[2], 6);
     sprite->flip_x = BIT_ISSET(data[2], 5);
-    sprite->palette = BIT_ISSET(data[2], 4) ? PALETTE_HIGH : PALETTE_LOW;
+    sprite->palette = BIT_ISSET(data[2], 4) ? high : low;
 #undef MAX
 }
 
@@ -545,13 +548,10 @@ draw_tile(dest_t* restrict dst, const source_t* restrict src,
         (morton_table[line_high] << 1) | morton_table[line_low];
 
     // Copy pixel for pixel
-    for (size_t i = src->x; i < num; i++) {
+    for (size_t i = src->x; i < num; i++, dst->data++, dst->remaining--) {
         const int shift = (7 - i) * 2;
-        dst->data[i] = palette->colors[(line & (0x3 << shift)) >> shift];
+        *dst->data = palette->colors[(line & (0x3 << shift)) >> shift];
     }
-
-    dst->data += num;
-    dst->remaining -= num;
 }
 
 static void
@@ -610,7 +610,7 @@ static void draw_line(context_t *ctx) {
 
         dest_init(
             &dest,
-            (pixel_t*)gfx->background->pixels,
+            gfx->background,
             0, screen_y, SCREEN_WIDTH
         );
         
@@ -639,10 +639,10 @@ static void draw_line(context_t *ctx) {
 
         dest_init(
             &dest,
-            (pixel_t*)gfx->background->pixels,
-            window_x, screen_y, SCREEN_WIDTH
+            gfx->background,
+            window_x, screen_y, SCREEN_WIDTH - window_x
         );
-        
+
         draw_tiles(&dest, &src, &palette);
         gfx->window_y += 1;
     }
@@ -661,16 +661,16 @@ static void draw_line(context_t *ctx) {
         
         sprite_table_t sprites = { .length = 0 };
         
-        for (int i = 0; i < MAX_SPRITES; i++)
+        for (size_t i = 0; i < MAX_SPRITES; i++)
         {
             sprite_t sprite;
-            sprite_decode(&sprite, ctx->mem.gfx.oam[i]);
+            sprite_decode(&sprite, ctx->mem.gfx.oam[i], &spp_high, &spp_low);
 
             if (!sprite.visible) {
                 continue;
             }
             
-            if (sprite.y <= screen_y && screen_y < sprite.y + sprite_height)
+            if (screen_y >= sprite.y && screen_y < sprite.y + sprite_height)
             {
                 graphics_sprite_table_add(&sprites, &sprite);
             }
@@ -690,21 +690,16 @@ static void draw_line(context_t *ctx) {
                 continue;
             }
 
-            uint16_t tile_id = (sprite->y < TILE_HEIGHT) ?
-                (sprite->tile_id & 0xFE) : (sprite->tile_id | 0x01);
-
             source_init(
                 &src,
-                get_tile_data(&ctx->mem, tile_id),
-                sprite->tile_x, sprite->tile_y
+                get_tile_data(&ctx->mem, sprite->tile_id),
+                sprite->tile_x, sprite->tile_y + (screen_y - sprite->y)
             );
 
             dest_init(
                 &dst,
-                sprite->in_background ?
-                    (pixel_t*)gfx->sprites_bg->pixels :
-                    (pixel_t*)gfx->sprites_fg->pixels,
-                sprite->x, sprite->y, SCREEN_WIDTH
+                sprite->in_background ? gfx->sprites_bg : gfx->sprites_fg,
+                sprite->x, sprite->y + (screen_y - sprite->y), TILE_WIDTH
             );
 
             // TODO: Flipping
@@ -712,7 +707,7 @@ static void draw_line(context_t *ctx) {
             draw_tile(
                 &dst,
                 &src,
-                sprite->palette == PALETTE_HIGH ? &spp_high : &spp_low
+                sprite->palette
             );
         }
     }
@@ -757,13 +752,11 @@ void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
 void graphics_draw_tile(const context_t* ctx, window_t* window,
     uint16_t tile_id, size_t x, size_t y)
 {
-    pixel_t* pixels = (pixel_t*)window->surface->pixels;
-
     for (size_t tile_y = 0; tile_y < TILE_HEIGHT; tile_y++) {
         source_t src;
         dest_t dst;
 
-        dest_init(&dst, pixels, x, y + tile_y, window->surface->w);
+        dest_init(&dst, window->surface, x, y + tile_y, window->surface->w - x);
         source_init(&src, get_tile_data(&ctx->mem, tile_id), 0, tile_y);
         draw_tile(&dst, &src, &ctx->gfx.debug_palettes[0]);
     }
