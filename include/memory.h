@@ -24,6 +24,18 @@ typedef struct mbc {
     };
 } mbc_t;
 
+typedef struct memory_tile {
+    uint8_t lines[TILE_HEIGHT][2];
+} memory_tile_t;
+
+typedef struct memory_tile_map {
+    uint8_t data[MAP_ROWS][MAP_COLUMNS];
+} memory_tile_map_t;
+
+typedef struct memory_tile_data {
+    memory_tile_t data[MAX_TILES];
+} memory_tile_data_t;
+
 typedef void (*mem_ctrl_f)(memory_t*, int, uint8_t);
 
 typedef struct memory_io {
@@ -55,9 +67,9 @@ typedef struct memory_io {
 
 typedef struct memory_gfx {
     uint8_t __pad0[0x8000];
-    uint8_t tiles[0x1800];
-    tile_map_t map_low;
-    tile_map_t map_high;
+    memory_tile_data_t tiles;
+    memory_tile_map_t  map_low; 
+    memory_tile_map_t  map_high;
     uint8_t __pad1[0x5E00];
     uint8_t oam[MAX_SPRITES][SPRITE_SIZE];
 } memory_gfx_t;

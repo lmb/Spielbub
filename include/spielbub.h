@@ -43,13 +43,6 @@ typedef struct registers {
     uint16_t AF, BC, DE, HL, SP, PC;
 } registers_t;
 
-typedef enum tile_map_location {
-    TILE_MAP_HIGH,
-    TILE_MAP_LOW
-} tile_map_location_t;
-
-typedef uint8_t tile_map_t[MAP_ROWS][MAP_COLUMNS];
-
 context_t* context_create(update_func_t func, void* context);
 bool context_load_rom(context_t *ctx, const char* filename);
 void context_destroy(context_t *ctx);
@@ -70,8 +63,6 @@ bool context_add_breakpoint(context_t* ctx, uint16_t addr);
 void context_get_registers(const context_t* ctx, registers_t* regs);
 uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
     uint16_t addr, uint16_t len);
-void context_get_map(const context_t* ctx, tile_map_t* map,
-    tile_map_location_t loc);
 
 void context_reset_traceback(const context_t* ctx);
 bool context_get_traceback(const context_t* ctx, uint16_t* value);

@@ -19,7 +19,6 @@ static void exec_traceback(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_print(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_registers(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg);
-static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_layer(const char* args, context_t* ctx, debug_t* dbg);
 
 static const struct {
@@ -38,7 +37,6 @@ static const struct {
     { &exec_print, "print" },
     { &exec_registers, "registers" },
     { &exec_viewtiles, "viewtiles" },
-    { &exec_viewmaps, "viewmaps" },
     { &exec_layer, "layer" }
 };
 
@@ -265,24 +263,6 @@ static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
     dbg->show_tiles = !dbg->show_tiles;
     
     printf("Toggling tile view.\n");
-}
-
-static void exec_viewmaps(const char* args, context_t* ctx, debug_t* dbg)
-{
-    tile_map_t map;
-
-    (void)args;
-    (void)dbg;
-
-    context_get_map(ctx, &map, TILE_MAP_LOW);
-
-    // print("Low tile map:\n");
-    // debug_print_map(&map);
-
-    // context_get_map(ctx, &map, TILE_MAP_HIGH);
-
-    // printf("High tile map:\n");
-    // debug_print_map(&map);
 }
 
 static void exec_layer(const char* args, context_t* ctx, debug_t* dbg)

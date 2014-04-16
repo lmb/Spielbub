@@ -244,16 +244,6 @@ uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
     return len;
 }
 
-void context_get_map(const context_t* ctx, tile_map_t* map,
-    tile_map_location_t loc)
-{
-    if (loc == TILE_MAP_HIGH) {
-        memcpy(map, ctx->mem.gfx.map_high, sizeof *map);
-    } else {
-        memcpy(map, ctx->mem.gfx.map_low, sizeof *map);
-    }
-}
-
 void context_reset_traceback(const context_t* ctx)
 {
     cb_reset(ctx->traceback);

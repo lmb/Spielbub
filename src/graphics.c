@@ -8,27 +8,22 @@
 #define NUM(x) (sizeof x / sizeof x[0])
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-typedef struct tile {
-    uint8_t lines[TILE_HEIGHT][2];
-} tile_t;
-
 typedef struct dest {
     pixel_t* data;
     size_t remaining;
 } dest_t;
 
 typedef struct source {
-    const tile_t* tile;
+    const memory_tile_t* tile;
     size_t x, y;
 } source_t;
 
 typedef struct map {
-    const uint8_t (*ids)[MAP_COLUMNS];
+    const memory_tile_map_t* tile_map;
+    const memory_tile_data_t* tile_data;
     bool signed_ids;
 
-    const tile_t* tiles;
-
-    size_t col;
+    size_t row, col;
     size_t tile_x, tile_y;
 } map_t;
 
@@ -393,7 +388,7 @@ dest_init(dest_t* dst, SDL_Surface* surface, size_t x, size_t y, size_t num)
 }
 
 static void
-source_init(source_t *src, const tile_t* tile, size_t x, size_t y)
+source_init(source_t *src, const memory_tile_t* tile, size_t x, size_t y)
 {
     src->tile = tile;
     src->x = x % TILE_WIDTH;
@@ -401,19 +396,18 @@ source_init(source_t *src, const tile_t* tile, size_t x, size_t y)
 }
 
 static void
-map_init(map_t* map, const memory_t* mem, const tile_map_t* ids, size_t x,
-    size_t y)
+map_init(map_t* map, const memory_t* mem, const memory_tile_map_t* tile_map,
+    size_t x, size_t y)
 {
     x %= MAP_WIDTH;
     y %= MAP_HEIGHT;
 
-    size_t row = y / TILE_HEIGHT;
-
     map->signed_ids = !BIT_ISSET(mem->io.LCDC, R_LCDC_TILE_DATA);
 
-    map->ids   = &(*ids)[row];
-    map->tiles = (tile_t*)mem->gfx.tiles;
+    map->tile_map = tile_map;
+    map->tile_data = &mem->gfx.tiles;
 
+    map->row    = y / TILE_HEIGHT;
     map->col    = x / TILE_WIDTH;
     map->tile_y = y % TILE_HEIGHT;
     map->tile_x = x % TILE_WIDTH;
@@ -422,22 +416,24 @@ map_init(map_t* map, const memory_t* mem, const tile_map_t* ids, size_t x,
 static void
 map_next(map_t* map, source_t* src)
 {
-    uint16_t id = (*map->ids)[map->col];
+    uint8_t tile_id = map->tile_map->data[map->row][map->col];
+    size_t index;
 
     if (map->signed_ids) {
-        id = 256 + (int8_t)id;
+        index = 256 + (int8_t)tile_id;
+    } else {
+        index = tile_id;
     }
 
-    assert(id < MAX_TILES);
+    assert(index < MAX_TILES);
 
-    map->col = (map->col + 1) % MAP_COLUMNS;
-
-    src->tile = &map->tiles[id];
+    src->tile = &map->tile_data->data[index];
     src->x = map->tile_x;
     src->y = map->tile_y;
 
     // Only the first tile can have a non-zero x offset
     map->tile_x = 0;
+    map->col = (map->col + 1) % MAP_COLUMNS;
 }
 
 static void
@@ -570,14 +566,6 @@ draw_tiles(dest_t* restrict dst, const map_t* restrict map,
     }
 }
 
-static const tile_t*
-get_tile_data(const memory_t *mem, uint16_t tile_id)
-{
-    assert(tile_id < 384);
-    // This is guaranteed to be aligned
-    return (tile_t*)&mem->gfx.tiles[tile_id * 16];
-}
-
 static void draw_line(context_t *ctx) {
     gfx_t* gfx = &ctx->gfx;
     uint8_t lcdc = ctx->mem.io.LCDC;
@@ -692,7 +680,7 @@ static void draw_line(context_t *ctx) {
 
             source_init(
                 &src,
-                get_tile_data(&ctx->mem, sprite->tile_id),
+                &ctx->mem.gfx.tiles.data[sprite->tile_id],
                 sprite->tile_x, sprite->tile_y + (screen_y - sprite->y)
             );
 
@@ -757,7 +745,7 @@ void graphics_draw_tile(const context_t* ctx, window_t* window,
         dest_t dst;
 
         dest_init(&dst, window->surface, x, y + tile_y, window->surface->w - x);
-        source_init(&src, get_tile_data(&ctx->mem, tile_id), 0, tile_y);
+        source_init(&src, &ctx->mem.gfx.tiles.data[tile_id], 0, tile_y);
         draw_tile(&dst, &src, &ctx->gfx.debug_palettes[0]);
     }
 }
