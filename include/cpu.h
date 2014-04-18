@@ -11,7 +11,7 @@
 #endif
 
 typedef enum {
-    I_VBLANK = 0x0, I_LCDC, I_TIMER, I_SERIAL_IO, I_JOYPAD
+    I_VBLANK = 0x0, I_LCDC, I_TIMER, I_SERIAL_IO, I_JOYPAD, I_MAX
 } interrupt_t;
 
 typedef struct cpu {

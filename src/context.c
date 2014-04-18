@@ -112,6 +112,11 @@ bool context_run(context_t* ctx)
             cb_write(ctx->traceback, &ctx->cpu.PC);
 #endif
 
+            if (ctx->cpu.IME) {
+                // Interrupt Master Enable
+                cpu_interrupts(ctx);
+            }
+
             if (ctx->cpu.halted) {
                 cycles = 4;
             } else {
@@ -122,11 +127,6 @@ bool context_run(context_t* ctx)
             timers_update(ctx, cycles);
             graphics_update(ctx, cycles);
             joypad_update(ctx);
-            
-            if (ctx->cpu.IME) {
-                // Interrupt Master Enable
-                cpu_interrupts(ctx);
-            }
 
 #if defined(DEBUG)
             if (ctx->stopflags & STOP_STEP)

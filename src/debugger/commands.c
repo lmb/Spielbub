@@ -20,6 +20,8 @@ static void exec_print(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_registers(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg);
 static void exec_layer(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_press(const char* args, context_t* ctx, debug_t* dbg);
+static void exec_release(const char* args, context_t* ctx, debug_t* dbg);
 
 static const struct {
     command_t handler;
@@ -37,7 +39,9 @@ static const struct {
     { &exec_print, "print" },
     { &exec_registers, "registers" },
     { &exec_viewtiles, "viewtiles" },
-    { &exec_layer, "layer" }
+    { &exec_layer, "layer" },
+    { &exec_press, "press" },
+    { &exec_release, "release" }
 };
 
 bool execute_command(const char* command, context_t* ctx, debug_t* dbg)
@@ -229,7 +233,7 @@ static void exec_registers(const char* args, context_t* ctx, debug_t* dbg)
     printf("   PC = %04Xh, SP = %04Xh\n", regs.PC, regs.SP);
 
     char Z, N, C, H;
-    uint8_t F = regs.AF & 0xF;
+    uint8_t F = regs.AF & 0xFF;
 
     Z = F & 0x80 ? 'Z' : '-';
     N = F & 0x40 ? 'N' : '-';
@@ -302,4 +306,67 @@ static void exec_layer(const char* args, context_t* ctx, debug_t* dbg)
 
     printf("Toggled layer %s\n", name);
     graphics_toggle_debug(ctx, layer);
+}
+
+static joypad_key_t
+parse_key(const char* args)
+{
+    static const struct {
+        const char* name;
+        const joypad_key_t key;
+    } keys[] = {
+        { "a", KEY_A },
+        { "b", KEY_B },
+        { "select", KEY_SELECT },
+        { "start", KEY_START },
+        { "right", KEY_RIGHT },
+        { "left", KEY_LEFT },
+        { "up", KEY_UP },
+        { "down", KEY_DOWN }
+    };
+
+    const size_t arglen = strlen(args);
+
+    joypad_key_t key = KEY_INVALID;
+
+    for (size_t i = 0; i < NUM(keys); i++) {
+        if (strncmp(keys[i].name, args, arglen) == 0) {
+            if (key != KEY_INVALID) {
+                printf("Ambiguous key specified\n");
+                return KEY_INVALID;
+            }
+
+            key = keys[i].key;
+        }
+    }
+
+    if (key == KEY_INVALID) {
+        printf("Invalid key specified\n");
+    }
+
+    return key;
+}
+
+static void exec_press(const char* args, context_t* ctx, debug_t* dbg)
+{
+    joypad_key_t key = parse_key(args);
+
+    (void)dbg;
+
+    if (key != KEY_INVALID) {
+        printf("Pressed %s\n", args);
+        joypad_press(ctx, key);
+    }
+}
+
+static void exec_release(const char* args, context_t* ctx, debug_t* dbg)
+{
+    joypad_key_t key = parse_key(args);
+
+    (void)dbg;
+
+    if (key != KEY_INVALID) {
+        printf("Released %s\n", args);
+        joypad_release(ctx, key);
+    }
 }

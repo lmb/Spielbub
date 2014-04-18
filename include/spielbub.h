@@ -39,6 +39,18 @@ typedef enum graphics_layer {
     LAYER_SPRITES = 4
 } graphics_layer_t;
 
+typedef enum joypad_key {
+    KEY_INVALID = 0,
+    KEY_A = 1,
+    KEY_B = 2,
+    KEY_SELECT = 4,
+    KEY_START = 8,
+    KEY_RIGHT = 16,
+    KEY_LEFT = 32,
+    KEY_UP = 64,
+    KEY_DOWN = 128
+} joypad_key_t;
+
 typedef struct registers {
     uint16_t AF, BC, DE, HL, SP, PC;
 } registers_t;
@@ -66,6 +78,9 @@ uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
 
 void context_reset_traceback(const context_t* ctx);
 bool context_get_traceback(const context_t* ctx, uint16_t* value);
+
+void joypad_press(context_t* ctx, joypad_key_t key);
+void joypad_release(context_t* ctx, joypad_key_t key);
 
 window_t* graphics_create_window(const char name[], int w, int h);
 void graphics_free_window(window_t* window);

@@ -4,8 +4,6 @@
 #define OAM_START (0xFE00)
 
 #define R_JOYPAD (0xFF00)
-#define R_JOYPAD_CONTROL (5)
-#define R_JOYPAD_DIRECTION (4)
 
 #define R_DIV (0xFF04)
 

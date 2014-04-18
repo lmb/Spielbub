@@ -6,7 +6,7 @@
 #include "context.h"
 
 #include "cpu_ops.h"
-#include "ioregs.h"
+#include "bit.h"
 #include "logging.h"
 #include "meta.h"
 
@@ -27,8 +27,9 @@ void cpu_init(cpu_t* cpu)
  */
 void cpu_irq(context_t *ctx, interrupt_t i)
 {
-    // Set bit in IF
-    ctx->mem.map[R_IF] |= 1 << i;
+    if (i < I_MAX) {
+        ctx->mem.io.IF |= 1 << i;
+    }
 }
 
 /*
@@ -36,17 +37,14 @@ void cpu_irq(context_t *ctx, interrupt_t i)
  */
 void cpu_interrupts(context_t *ctx)
 {
-    // Interrupt requests
-    const uint8_t r_if = ctx->mem.map[R_IF];
-    // Interrupt enable
-    const uint8_t r_ie = ctx->mem.map[R_IE];
+    const uint8_t interrupts = ctx->mem.io.IF & ctx->mem.io.IE;
 
     int i;
-    for (i = 0; i < 5; i++)
+    for (i = 0; i < I_MAX; i++)
     {
         const uint8_t mask = 1 << i;
 
-        if ((r_if & mask) && (r_ie & mask))
+        if (interrupts & mask)
         {
             // Interrupt is requested and user
             // code is interested in it.
@@ -57,7 +55,7 @@ void cpu_interrupts(context_t *ctx)
             
             // Clear the interrupt from the interrupt
             // request register.
-            ctx->mem.map[R_IF] &= ~mask;
+            ctx->mem.io.IF &= ~mask;
 
             // Push the current program counter onto the stack
             _push(ctx, ctx->cpu.PC);
@@ -72,7 +70,7 @@ void cpu_interrupts(context_t *ctx)
                 case I_JOYPAD:    ctx->cpu.PC = 0x60; break;
             }
 
-            return;
+            break;
         }
     }
 }
@@ -766,8 +764,8 @@ int cpu_run(context_t *ctx)
             break;
 
         case 0xCB:
-            value = mem->map[cpu->PC++];
-            switch (value)
+            opcode = mem->map[cpu->PC++];
+            switch (opcode)
             {
                 // RLC r
                 case 0x00: _rotate_l(cpu, &cpu->B); break;
@@ -859,8 +857,7 @@ int cpu_run(context_t *ctx)
                 case 0x68:
                 case 0x70:
                 case 0x78:
-                    value = (opcode - 0x40) % 8; // find bit
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->B, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->B, (opcode - 0x40) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -874,8 +871,7 @@ int cpu_run(context_t *ctx)
                 case 0x69:
                 case 0x71:
                 case 0x79:
-                    value = (opcode - 0x41) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->C, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->C, (opcode - 0x41) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -889,8 +885,7 @@ int cpu_run(context_t *ctx)
                 case 0x6A:
                 case 0x72:
                 case 0x7A:
-                    value = (opcode - 0x42) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->D, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->D, (opcode - 0x42) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -904,8 +899,7 @@ int cpu_run(context_t *ctx)
                 case 0x6B:
                 case 0x73:
                 case 0x7B:
-                    value = (opcode - 0x43) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->E, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->E, (opcode - 0x43) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -919,8 +913,7 @@ int cpu_run(context_t *ctx)
                 case 0x6C:
                 case 0x74:
                 case 0x7C:
-                    value = (opcode - 0x44) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->H, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->H, (opcode - 0x44) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -934,8 +927,7 @@ int cpu_run(context_t *ctx)
                 case 0x6D:
                 case 0x75:
                 case 0x7D:
-                    value = (opcode - 0x45) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->L, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->L, (opcode - 0x45) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -949,8 +941,8 @@ int cpu_run(context_t *ctx)
                 case 0x6E:
                 case 0x76:
                 case 0x7E:
-                    value = (opcode - 0x46) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(mem->map[cpu->HL], value));
+                    cpu_set_z(cpu, !bit_is_set(mem->map[cpu->HL],
+                        (opcode - 0x46) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -964,8 +956,7 @@ int cpu_run(context_t *ctx)
                 case 0x6F:
                 case 0x77:
                 case 0x7F:
-                    value = (opcode - 0x47) % 8;
-                    cpu_set_z(cpu, !BIT_ISSET(cpu->A, value));
+                    cpu_set_z(cpu, !bit_is_set(cpu->A, (opcode - 0x47) / 8));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
                     break;
@@ -979,8 +970,7 @@ int cpu_run(context_t *ctx)
                 case 0xA8:
                 case 0xB0:
                 case 0xB8:
-                    value = (opcode - 0x80) % 8;
-                    BIT_RESET(cpu->B, value);
+                    cpu->B = bit_unset(cpu->B, (opcode - 0x80) / 8);
                     break;
 
                 // RES n,C
@@ -992,8 +982,7 @@ int cpu_run(context_t *ctx)
                 case 0xA9:
                 case 0xB1:
                 case 0xB9:
-                    value = (opcode - 0x81) % 8;
-                    BIT_RESET(cpu->C, value);
+                    cpu->C = bit_unset(cpu->C, (opcode - 0x81) / 8);
                     break;
 
                 // RES n,D
@@ -1005,8 +994,7 @@ int cpu_run(context_t *ctx)
                 case 0xAA:
                 case 0xB2:
                 case 0xBA:
-                    value = (opcode - 0x82) % 8;
-                    BIT_RESET(cpu->D, value);
+                    cpu->D = bit_unset(cpu->D, (opcode - 0x82) / 8);
                     break;
 
                 // RES n,E
@@ -1018,8 +1006,7 @@ int cpu_run(context_t *ctx)
                 case 0xAB:
                 case 0xB3:
                 case 0xBB:
-                    value = (opcode - 0x83) % 8;
-                    BIT_RESET(cpu->E, value);
+                    cpu->E = bit_unset(cpu->E, (opcode - 0x83) / 8);
                     break;
 
                 // RES n,H
@@ -1031,8 +1018,7 @@ int cpu_run(context_t *ctx)
                 case 0xAC:
                 case 0xB4:
                 case 0xBC:
-                    value = (opcode - 0x84) % 8;
-                    BIT_RESET(cpu->H, value);
+                    cpu->H = bit_unset(cpu->H, (opcode - 0x84) / 8);
                     break;
 
                 // RES n,L
@@ -1044,8 +1030,7 @@ int cpu_run(context_t *ctx)
                 case 0xAD:
                 case 0xB5:
                 case 0xBD:
-                    value = (opcode - 0x85) % 8;
-                    BIT_RESET(cpu->L, value);
+                    cpu->L = bit_unset(cpu->L, (opcode - 0x85) / 8);
                     break;
 
                 // RES n,(HL)
@@ -1057,8 +1042,8 @@ int cpu_run(context_t *ctx)
                 case 0xAE:
                 case 0xB6:
                 case 0xBE:
-                    value = (opcode - 0x86) % 8;
-                    BIT_RESET(*&mem->map[cpu->HL], value);
+                    *&mem->map[cpu->HL] = bit_unset(*&mem->map[cpu->HL],
+                        (opcode - 0x86) / 8);
                     break;
 
                 // RES n,A
@@ -1070,8 +1055,7 @@ int cpu_run(context_t *ctx)
                 case 0xAF:
                 case 0xB7:
                 case 0xBF:
-                    value = (opcode - 0x87) % 8;
-                    BIT_RESET(cpu->A, value);
+                    cpu->A = bit_unset(cpu->A, (opcode - 0x87) / 8);
                     break;
 
                 // SET n,B
@@ -1083,8 +1067,7 @@ int cpu_run(context_t *ctx)
                 case 0xE8:
                 case 0xF0:
                 case 0xF8:
-                    value = (opcode - 0xC0) % 8;
-                    BIT_SET(cpu->B, value);
+                    cpu->B = bit_set(cpu->B, (opcode - 0xC0) / 8);
                     break;
 
                 // SET n,C
@@ -1096,8 +1079,7 @@ int cpu_run(context_t *ctx)
                 case 0xE9:
                 case 0xF1:
                 case 0xF9:
-                    value = (opcode - 0xC1) % 8;
-                    BIT_SET(cpu->C, value);
+                    cpu->C = bit_set(cpu->C, (opcode - 0xC1) / 8);
                     break;
 
                 // SET n,D
@@ -1109,8 +1091,7 @@ int cpu_run(context_t *ctx)
                 case 0xEA:
                 case 0xF2:
                 case 0xFA:
-                    value = (opcode - 0xC2) % 8;
-                    BIT_SET(cpu->D, value);
+                    cpu->D = bit_set(cpu->D, (opcode - 0xC2) / 8);
                     break;
 
                 // SET n,E
@@ -1122,8 +1103,7 @@ int cpu_run(context_t *ctx)
                 case 0xEB:
                 case 0xF3:
                 case 0xFB:
-                    value = (opcode - 0xC3) % 8;
-                    BIT_SET(cpu->E, value);
+                    cpu->E = bit_set(cpu->E, (opcode - 0xC3) / 8);
                     break;
 
                 // SET n,H
@@ -1135,8 +1115,7 @@ int cpu_run(context_t *ctx)
                 case 0xEC:
                 case 0xF4:
                 case 0xFC:
-                    value = (opcode - 0xC4) % 8;
-                    BIT_SET(cpu->H, value);
+                    cpu->H = bit_set(cpu->H, (opcode - 0xC4) / 8);
                     break;
 
                 // SET n,L
@@ -1148,8 +1127,7 @@ int cpu_run(context_t *ctx)
                 case 0xED:
                 case 0xF5:
                 case 0xFD:
-                    value = (opcode - 0xC5) % 8;
-                    BIT_SET(cpu->L, value);
+                    cpu->L = bit_set(cpu->L, (opcode - 0xC5) / 8);
                     break;
 
                 // SET n,(HL)
@@ -1161,8 +1139,8 @@ int cpu_run(context_t *ctx)
                 case 0xEE:
                 case 0xF6:
                 case 0xFE:
-                    value = (opcode - 0xC6) % 8;
-                    BIT_SET(mem->map[cpu->HL], value);
+                    mem->map[cpu->HL] = bit_set(mem->map[cpu->HL],
+                        (opcode - 0xC6) / 8);
                     break;
 
                 // SET n,A
@@ -1174,8 +1152,7 @@ int cpu_run(context_t *ctx)
                 case 0xEF:
                 case 0xF7:
                 case 0xFF:
-                    value = (opcode - 0xC7) % 8;
-                    BIT_SET(cpu->A, value);
+                    cpu->A = bit_set(cpu->A, (opcode - 0xC7) / 8);
                     break;
 
                 default:

@@ -40,8 +40,6 @@ struct context {
     uint32_t next_run;
 
     // Joypad
-    // The state of both direction and "menu"
-    // keys is saved here.
     uint8_t joypad_state;
     
     execution_state_t state;
