@@ -458,26 +458,26 @@ palette_decode(palette_t* restrict palette,
 }
 
 static void
-sprite_decode(sprite_t *sprite, const uint8_t* data, const palette_t* high,
+sprite_decode(sprite_t *sprite, const memory_oam_t* oam, const palette_t* high,
     const palette_t* low)
 {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
-    sprite->y      = MAX(0, data[0] - SPRITE_HEIGHT);
-    sprite->x      = MAX(0, data[1] - SPRITE_WIDTH);
-    sprite->tile_y = MAX(0, SPRITE_HEIGHT - data[0]);
-    sprite->tile_x = MAX(0, SPRITE_WIDTH - data[1]);
+    sprite->y      = MAX(0, oam->data[0] - SPRITE_HEIGHT);
+    sprite->x      = MAX(0, oam->data[1] - SPRITE_WIDTH);
+    sprite->tile_y = MAX(0, SPRITE_HEIGHT - oam->data[0]);
+    sprite->tile_x = MAX(0, SPRITE_WIDTH - oam->data[1]);
 
     sprite->tile_id = (sprite->tile_y < TILE_HEIGHT) ?
-        (data[2] & 0xFE) : (data[2] | 0x01);
+        (oam->data[2] & 0xFE) : (oam->data[2] | 0x01);
     sprite->tile_y %= TILE_HEIGHT;
 
     sprite->visible = sprite->tile_x < SPRITE_WIDTH
         && sprite->tile_y < SPRITE_HEIGHT;
 
-    sprite->in_background = BIT_ISSET(data[2], 7);
-    sprite->flip_y = BIT_ISSET(data[2], 6);
-    sprite->flip_x = BIT_ISSET(data[2], 5);
-    sprite->palette = BIT_ISSET(data[2], 4) ? high : low;
+    sprite->in_background = BIT_ISSET(oam->data[2], 7);
+    sprite->flip_y = BIT_ISSET(oam->data[2], 6);
+    sprite->flip_x = BIT_ISSET(oam->data[2], 5);
+    sprite->palette = BIT_ISSET(oam->data[2], 4) ? high : low;
 #undef MAX
 }
 
@@ -652,7 +652,7 @@ static void draw_line(context_t *ctx) {
         for (size_t i = 0; i < MAX_SPRITES; i++)
         {
             sprite_t sprite;
-            sprite_decode(&sprite, ctx->mem.gfx.oam[i], &spp_high, &spp_low);
+            sprite_decode(&sprite, &ctx->mem.gfx.oam[i], &spp_high, &spp_low);
 
             if (!sprite.visible) {
                 continue;
@@ -705,36 +705,27 @@ static void draw_line(context_t *ctx) {
 
 void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
 {
-    int i;
+    size_t i;
 
     assert(table != NULL);
+    assert(table->length <= NUM(table->data));
 
-    if (table->length == 0)
-    {
-        table->data[0] = *sprite;
-        table->length = 1;
-        
+    if (table->length < NUM(table->data)) {
+        table->data[table->length] = *sprite;
+        i = table->length;
+        table->length++;
+    } else if (sprite->x < table->data[NUM(table->data) - 1].x) {
+        table->data[NUM(table->data) - 1] = *sprite;
+        i = NUM(table->data) - 1;
+    } else {
         return;
     }
 
-    // Bail out if last (tenth) element is lower than element to be inserted
-    if (table->length == SPRITES_PER_LINE &&
-        table->data[SPRITES_PER_LINE - 1].x < sprite->x)
-    {
-        return;
+    while (i > 0 && table->data[i].x < table->data[i-1].x) {
+        sprite_t temp    = table->data[i];
+        table->data[i]   = table->data[i-1];
+        table->data[i-1] = temp;
     }
-
-    i = (table->length >= SPRITES_PER_LINE - 1 ) ?
-        SPRITES_PER_LINE - 1 : table->length;
-
-    while (i > 0 && table->data[i - 1].x > sprite->x)
-    {
-        table->data[i] = table->data[i - 1];
-        i--;
-    }
-
-    table->data[i] = *sprite;
-    table->length += 1;
 }
 
 void graphics_draw_tile(const context_t* ctx, window_t* window,

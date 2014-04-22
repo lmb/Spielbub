@@ -64,7 +64,7 @@ typedef struct sprite {
 } sprite_t;
 
 typedef struct {
-    int length;
+    size_t length;
     sprite_t data[SPRITES_PER_LINE];
 } sprite_table_t;
 

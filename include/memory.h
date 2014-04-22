@@ -36,6 +36,10 @@ typedef struct memory_tile_data {
     memory_tile_t data[MAX_TILES];
 } memory_tile_data_t;
 
+typedef struct memory_oam {
+    uint8_t data[SPRITE_SIZE];
+} memory_oam_t;
+
 typedef void (*mem_ctrl_f)(memory_t*, int, uint8_t);
 
 typedef struct memory_io {
@@ -71,7 +75,7 @@ typedef struct memory_gfx {
     memory_tile_map_t  map_low; 
     memory_tile_map_t  map_high;
     uint8_t __pad1[0x5E00];
-    uint8_t oam[MAX_SPRITES][SPRITE_SIZE];
+    memory_oam_t oam[MAX_SPRITES];
 } memory_gfx_t;
 
 struct memory {
