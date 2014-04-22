@@ -10,6 +10,14 @@
 #include "logging.h"
 #include "meta.h"
 
+#define NUM(x) (sizeof (x) / sizeof (x)[0])
+
+static size_t
+opcode_to_bit(uint8_t opcode)
+{
+    return (opcode / 8) % 8;
+}
+
 void cpu_init(cpu_t* cpu)
 {
     cpu->A   = 0x01;
@@ -20,6 +28,46 @@ void cpu_init(cpu_t* cpu)
     cpu->SP  = 0xFFFE;
     cpu->PC  = 0x0100;
     cpu->IME = true;
+}
+
+static inline uint8_t*
+offset_to_reg(context_t* ctx, size_t offset)
+{
+    cpu_t* cpu = &ctx->cpu;
+
+    switch (offset % 8)
+    {
+        case 0x0:
+            return &cpu->B;
+        case 0x1:
+            return &cpu->C;
+        case 0x2:
+            return &cpu->D;
+        case 0x3:
+            return &cpu->E;
+        case 0x4:
+            return &cpu->H;
+        case 0x5:
+            return &cpu->L;
+        case 0x6:
+            return &ctx->mem.map[cpu->HL];
+        case 0x7:
+            return &cpu->A;
+    }
+
+    // This will never happen, since offset is % 8
+    return NULL;
+}
+
+uint8_t*
+cpu_get_operand(context_t *ctx, uint8_t opcode) {
+    return offset_to_reg(ctx, opcode);
+}
+
+uint8_t*
+cpu_get_dest(context_t* ctx, uint8_t opcode)
+{
+    return offset_to_reg(ctx, opcode / 8);
 }
 
 /*
@@ -58,7 +106,7 @@ void cpu_interrupts(context_t *ctx)
             ctx->mem.io.IF &= ~mask;
 
             // Push the current program counter onto the stack
-            _push(ctx, ctx->cpu.PC);
+            cpu_push(ctx, ctx->cpu.PC);
 
             // Select the appropriate ISR
             switch (i)
@@ -83,10 +131,8 @@ int cpu_run(context_t *ctx)
     memory_t *mem = &ctx->mem;
     cpu_t *cpu = &ctx->cpu;
 
-    unsigned int value = 0;
     unsigned int opcode;
-    unsigned int cycles = 0;
-    
+
     opcode = mem->map[cpu->PC++];
 
     switch(opcode)
@@ -108,30 +154,30 @@ int cpu_run(context_t *ctx)
 
         // JP nn
         case 0xC3:
-            _jump(ctx);
+            cpu_jump(ctx);
             break;
 
         // JP NZ, nn
         case 0xC2:
-            if (!cpu_get_z(cpu)) _jump(ctx);
+            if (!cpu_get_z(cpu)) cpu_jump(ctx);
             else cpu->PC += 2;
             break;
 
         // JP Z, nn
         case 0xCA:
-            if (cpu_get_z(cpu)) _jump(ctx);
+            if (cpu_get_z(cpu)) cpu_jump(ctx);
             else cpu->PC += 2;
             break;
 
         // JP NC, nn
         case 0xD2:
-            if (!cpu_get_c(cpu)) _jump(ctx);
+            if (!cpu_get_c(cpu)) cpu_jump(ctx);
             else cpu->PC += 2;
             break;
 
         // JP Z, nn
         case 0xDA:
-            if (cpu_get_c(cpu)) _jump(ctx);
+            if (cpu_get_c(cpu)) cpu_jump(ctx);
             else cpu->PC += 2;
             break;
 
@@ -143,100 +189,100 @@ int cpu_run(context_t *ctx)
         // Jump is calculated from instruction after the JR
         // JR n
         case 0x18:
-            _jump_rel(ctx);
+            cpu_jump_rel(ctx);
             break;
 
         // JR NZ, n
         case 0x20:
-            if (!cpu_get_z(cpu)) _jump_rel(ctx);
+            if (!cpu_get_z(cpu)) cpu_jump_rel(ctx);
             else cpu->PC++;
             break;
 
         // JR Z, n
         case 0x28:
-            if (cpu_get_z(cpu)) _jump_rel(ctx);
+            if (cpu_get_z(cpu)) cpu_jump_rel(ctx);
             else cpu->PC++;
             break;
 
         // JR NC, n
         case 0x30:
-            if (!cpu_get_c(cpu)) _jump_rel(ctx);
+            if (!cpu_get_c(cpu)) cpu_jump_rel(ctx);
             else cpu->PC++;
             break;
 
         // JR C, n
         case 0x38:
-            if (cpu_get_c(cpu)) _jump_rel(ctx);
+            if (cpu_get_c(cpu)) cpu_jump_rel(ctx);
             else cpu->PC++;
             break;
 
         // CALL nn
         case 0xCD:
-            _call(ctx);
+            cpu_call(ctx);
             break;
 
         // CALL NZ, nn
         case 0xC4:
-            if (!cpu_get_z(cpu)) _call(ctx);
+            if (!cpu_get_z(cpu)) cpu_call(ctx);
             else cpu->PC += 2;
             break;
 
         // CALL Z, nn
         case 0xCC:
-            if (cpu_get_z(cpu)) _call(ctx);
+            if (cpu_get_z(cpu)) cpu_call(ctx);
             else cpu->PC += 2;
             break;
 
         // CALL NC, nn
         case 0xD4:
-            if (!cpu_get_c(cpu)) _call(ctx);
+            if (!cpu_get_c(cpu)) cpu_call(ctx);
             else cpu->PC += 2;
             break;
 
         // CALL C, nn
         case 0xDC:
-            if (cpu_get_c(cpu)) _call(ctx);
+            if (cpu_get_c(cpu)) cpu_call(ctx);
             else cpu->PC += 2;
             break;
 
         // RST
-        case 0xC7: _restart(ctx, 0x00); break;
-        case 0xCF: _restart(ctx, 0x08); break;
-        case 0xD7: _restart(ctx, 0x10); break;
-        case 0xDF: _restart(ctx, 0x18); break;
-        case 0xE7: _restart(ctx, 0x20); break;
-        case 0xEF: _restart(ctx, 0x28); break;
-        case 0xF7: _restart(ctx, 0x30); break;
-        case 0xFF: _restart(ctx, 0x38); break;
+        case 0xC7: cpu_restart(ctx, 0x00); break;
+        case 0xCF: cpu_restart(ctx, 0x08); break;
+        case 0xD7: cpu_restart(ctx, 0x10); break;
+        case 0xDF: cpu_restart(ctx, 0x18); break;
+        case 0xE7: cpu_restart(ctx, 0x20); break;
+        case 0xEF: cpu_restart(ctx, 0x28); break;
+        case 0xF7: cpu_restart(ctx, 0x30); break;
+        case 0xFF: cpu_restart(ctx, 0x38); break;
 
         // RET
         case 0xC9:
-            _return(ctx);
+            cpu_return(ctx);
             break;
 
         // RET NZ
         case 0xC0:
-            if (!cpu_get_z(cpu)) _return(ctx);
+            if (!cpu_get_z(cpu)) cpu_return(ctx);
             break;
 
         // RET Z
         case 0xC8:
-            if (cpu_get_z(cpu)) _return(ctx);
+            if (cpu_get_z(cpu)) cpu_return(ctx);
             break;
 
         // RET NC
         case 0xD0:
-            if (!cpu_get_c(cpu)) _return(ctx);
+            if (!cpu_get_c(cpu)) cpu_return(ctx);
             break;
 
         // RET C
         case 0xD8:
-            if (cpu_get_c(cpu)) _return(ctx);
+            if (cpu_get_c(cpu)) cpu_return(ctx);
             break;
 
         // RETI
         case 0xD9:
-            _return(ctx);
+            cpu_return(ctx);
             cpu->IME = true;
             break;
 
@@ -244,108 +290,108 @@ int cpu_run(context_t *ctx)
         // ___ 8bit loads ________________________
 
         // LD B, r
-        case 0x40: cpu->B = cpu->B; break;
-        case 0x41: cpu->B = cpu->C; break;
-        case 0x42: cpu->B = cpu->D; break;
-        case 0x43: cpu->B = cpu->E; break;
-        case 0x44: cpu->B = cpu->H; break;
-        case 0x45: cpu->B = cpu->L; break;
-        case 0x46: cpu->B = mem->map[cpu->HL]; break;
-        case 0x47: cpu->B = cpu->A; break;
-
-        // LD B, n
-        case 0x06: cpu->B = mem->map[cpu->PC++]; break;
-
+        case 0x40:
+        case 0x41:
+        case 0x42:
+        case 0x43:
+        case 0x44:
+        case 0x45:
+        case 0x46:
+        case 0x47:
         // LD C, r
-        case 0x48: cpu->C = cpu->B; break;
-        case 0x49: cpu->C = cpu->C; break;
-        case 0x4A: cpu->C = cpu->D; break;
-        case 0x4B: cpu->C = cpu->E; break;
-        case 0x4C: cpu->C = cpu->H; break;
-        case 0x4D: cpu->C = cpu->L; break;
-        case 0x4E: cpu->C = mem->map[cpu->HL]; break;
-        case 0x4F: cpu->C = cpu->A; break;
-
-        // LD C, n
-        case 0x0E: cpu->C = mem->map[cpu->PC++]; break;
-
+        case 0x48:
+        case 0x49:
+        case 0x4A:
+        case 0x4B:
+        case 0x4C:
+        case 0x4D:
+        case 0x4E:
+        case 0x4F:
         // LD D, r
-        case 0x50: cpu->D = cpu->B; break;
-        case 0x51: cpu->D = cpu->C; break;
-        case 0x52: cpu->D = cpu->D; break;
-        case 0x53: cpu->D = cpu->E; break;
-        case 0x54: cpu->D = cpu->H; break;
-        case 0x55: cpu->D = cpu->L; break;
-        case 0x56: cpu->D = mem->map[cpu->HL]; break;
-        case 0x57: cpu->D = cpu->A; break;
-
-        // LD D, n
-        case 0x16: cpu->D = mem->map[cpu->PC++]; break;
-
+        case 0x50:
+        case 0x51:
+        case 0x52:
+        case 0x53:
+        case 0x54:
+        case 0x55:
+        case 0x56:
+        case 0x57:
         // LD E, r
-        case 0x58: cpu->E = cpu->B; break;
-        case 0x59: cpu->E = cpu->C; break;
-        case 0x5A: cpu->E = cpu->D; break;
-        case 0x5B: cpu->E = cpu->E; break;
-        case 0x5C: cpu->E = cpu->H; break;
-        case 0x5D: cpu->E = cpu->L; break;
-        case 0x5E: cpu->E = mem->map[cpu->HL]; break;
-        case 0x5F: cpu->E = cpu->A; break;
-
-        // LD E, n
-        case 0x1E: cpu->E = mem->map[cpu->PC++]; break;
-
+        case 0x58:
+        case 0x59:
+        case 0x5A:
+        case 0x5B:
+        case 0x5C:
+        case 0x5D:
+        case 0x5E:
+        case 0x5F:
         // LD H, r
-        case 0x60: cpu->H = cpu->B; break;
-        case 0x61: cpu->H = cpu->C; break;
-        case 0x62: cpu->H = cpu->D; break;
-        case 0x63: cpu->H = cpu->E; break;
-        case 0x64: cpu->H = cpu->H; break;
-        case 0x65: cpu->H = cpu->L; break;
-        case 0x66: cpu->H = mem->map[cpu->HL]; break;
-        case 0x67: cpu->H = cpu->A; break;
-
-        // LD H, n
-        case 0x26: cpu->H = mem->map[cpu->PC++]; break;
-
+        case 0x60:
+        case 0x61:
+        case 0x62:
+        case 0x63:
+        case 0x64:
+        case 0x65:
+        case 0x66:
+        case 0x67:
         // LD L, r
-        case 0x68: cpu->L = cpu->B; break;
-        case 0x69: cpu->L = cpu->C; break;
-        case 0x6A: cpu->L = cpu->D; break;
-        case 0x6B: cpu->L = cpu->E; break;
-        case 0x6C: cpu->L = cpu->H; break;
-        case 0x6D: cpu->L = cpu->L; break;
-        case 0x6E: cpu->L = mem->map[cpu->HL]; break;
-        case 0x6F: cpu->L = cpu->A; break;
+        case 0x68:
+        case 0x69:
+        case 0x6A:
+        case 0x6B:
+        case 0x6C:
+        case 0x6D:
+        case 0x6E:
+        case 0x6F:
+        
+        // LD A, r
+        case 0x78:
+        case 0x79:
+        case 0x7A:
+        case 0x7B:
+        case 0x7C:
+        case 0x7D:
+        case 0x7E:
+        case 0x7F: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+            uint8_t* dest = cpu_get_dest(ctx, opcode);
 
-        // LD L, n
-        case 0x2E: cpu->L = mem->map[cpu->PC++]; break;
+            *dest = *operand;
+            break;
+        }
 
         // LD (HL), r
-        case 0x70: mem_write(&ctx->mem, cpu->HL, cpu->B); break;
-        case 0x71: mem_write(&ctx->mem, cpu->HL, cpu->C); break;
-        case 0x72: mem_write(&ctx->mem, cpu->HL, cpu->D); break;
-        case 0x73: mem_write(&ctx->mem, cpu->HL, cpu->E); break;
-        case 0x74: mem_write(&ctx->mem, cpu->HL, cpu->H); break;
-        case 0x75: mem_write(&ctx->mem, cpu->HL, cpu->L); break;
-        // 0x76: HALT
-        case 0x77: mem_write(&ctx->mem, cpu->HL, cpu->A); break;
+        case 0x70:
+        case 0x71:
+        case 0x72:
+        case 0x73:
+        case 0x74:
+        case 0x75: {
+            uint8_t *operand = cpu_get_operand(ctx, opcode);
+
+            mem_write(&ctx->mem, cpu->HL, *operand);
+            break;
+        }
+
+        // LD r, n
+        case 0x06:
+        case 0x0E:
+        case 0x16:
+        case 0x1E:
+        case 0x26:
+        case 0x2E:
+        case 0x3E: {
+            uint8_t *dest = cpu_get_dest(ctx, opcode);
+
+            *dest = mem->map[cpu->PC++];
+            break;
+        }
 
         // LD (HL), n
         case 0x36: mem_write(&ctx->mem, cpu->HL, mem->map[cpu->PC++]); break;
 
-        // LD A, r
-        case 0x78: cpu->A = cpu->B; break;
-        case 0x79: cpu->A = cpu->C; break;
-        case 0x7A: cpu->A = cpu->D; break;
-        case 0x7B: cpu->A = cpu->E; break;
-        case 0x7C: cpu->A = cpu->H; break;
-        case 0x7D: cpu->A = cpu->L; break;
-        case 0x7E: cpu->A = mem->map[cpu->HL]; break;
-        case 0x7F: cpu->A = cpu->A; break;
-
-        // LD A, n
-        case 0x3E: cpu->A = mem->map[cpu->PC++]; break;
+        // LD (HL), A
+        case 0x77: mem_write(&ctx->mem, cpu->HL, cpu->A); break;
 
         // LD A, (BC)
         case 0x0A:
@@ -457,8 +503,8 @@ int cpu_run(context_t *ctx)
             break;
 
         // LD HL, SP+n
-        case 0xF8:
-            value = (int8_t)mem->map[cpu->PC++];
+        case 0xF8: {
+            int value = (int8_t)mem->map[cpu->PC++];
 
             cpu_set_z(cpu, false);
             cpu_set_n(cpu, false);
@@ -470,6 +516,7 @@ int cpu_run(context_t *ctx)
             cpu->HL = value;
 
             break;
+        }
 
         // LD (nn), SP
         case 0x08: {
@@ -482,173 +529,242 @@ int cpu_run(context_t *ctx)
 
         // PUSH BC
         case 0xC5:
-            _push(ctx, cpu->BC);
+            cpu_push(ctx, cpu->BC);
             break;
 
         // PUSH DE
         case 0xD5:
-            _push(ctx, cpu->DE);
+            cpu_push(ctx, cpu->DE);
             break;
 
         // PUSH HL
         case 0xE5:
-            _push(ctx, cpu->HL);
+            cpu_push(ctx, cpu->HL);
             break;
 
         // PUSH AF
         case 0xF5:
-            _push(ctx, cpu->AF);
+            cpu_push(ctx, cpu->AF);
             break;
 
         // POP BC
         case 0xC1:
-            cpu->BC = _pop(ctx);
+            cpu->BC = cpu_pop(ctx);
             break;
 
         // POP DE
         case 0xD1:
-            cpu->DE = _pop(ctx);
+            cpu->DE = cpu_pop(ctx);
             break;
 
         // POP HL
         case 0xE1:
-            cpu->HL = _pop(ctx);
+            cpu->HL = cpu_pop(ctx);
             break;
 
         // POP AF
         case 0xF1:
-            cpu->AF = _pop(ctx);
+            cpu->AF = cpu_pop(ctx);
             break;
 
         // ___ ALU ____________________________________________
 
         // --- 8bit -------------------------------------------
 
-        // ADC A, r; ADD A, r
-        case 0x88: value = 1;
-        case 0x80: _add(cpu, cpu->B, (bool)value); break;
-        case 0x89: value = 1;
-        case 0x81: _add(cpu, cpu->C, (bool)value); break;
-        case 0x8A: value = 1;
-        case 0x82: _add(cpu, cpu->D, (bool)value); break;
-        case 0x8B: value = 1;
-        case 0x83: _add(cpu, cpu->E, (bool)value); break;
-        case 0x8C: value = 1;
-        case 0x84: _add(cpu, cpu->H, (bool)value); break;
-        case 0x8D: value = 1;
-        case 0x85: _add(cpu, cpu->L, (bool)value); break;
-        case 0x8E: value = 1;
-        case 0x86: _add(cpu, mem->map[cpu->HL], (bool)value);  break;
-        case 0x8F: value = 1;
-        case 0x87: _add(cpu, cpu->A, (bool)value); break;
-        case 0xCE: value = 1;
-        case 0xC6: _add(cpu, mem->map[cpu->PC++], (bool)value); break;
+        // ADD A, r
+        case 0x80:
+        case 0x81:
+        case 0x82:
+        case 0x83:
+        case 0x84:
+        case 0x85:
+        case 0x86:
+        case 0x87: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
 
-        // SBC A, r; SUB A, r
-        case 0x98: value = 1;
-        case 0x90: _sub(cpu, cpu->B, (bool)value); break;
-        case 0x99: value = 1;
-        case 0x91: _sub(cpu, cpu->C, (bool)value); break;
-        case 0x9A: value = 1;
-        case 0x92: _sub(cpu, cpu->D, (bool)value); break;
-        case 0x9B: value = 1;
-        case 0x93: _sub(cpu, cpu->E, (bool)value); break;
-        case 0x9C: value = 1;
-        case 0x94: _sub(cpu, cpu->H, (bool)value); break;
-        case 0x9D: value = 1;
-        case 0x95: _sub(cpu, cpu->L, (bool)value); break;
-        case 0x9E: value = 1;
-        case 0x96: _sub(cpu, mem->map[cpu->HL], (bool)value); break;
-        case 0x9F: value = 1;
-        case 0x97: _sub(cpu, cpu->A, (bool)value); break;
-        case 0xDE: value = 1; // BIG ???, SBC A, n
-        case 0xD6: _sub(cpu, mem->map[cpu->PC++], (bool)value); break;
+            cpu_add(cpu, *operand);
+            break;
+        }
+
+        // ADC A, r
+        case 0x88:
+        case 0x89:
+        case 0x8A:
+        case 0x8B:
+        case 0x8C:
+        case 0x8D:
+        case 0x8E:
+        case 0x8F: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_add_carry(cpu, *operand);
+            break;
+        }
+
+        // ADD A, n
+        case 0xC6: cpu_add(cpu, mem->map[cpu->PC++]); break;
+
+        // ADC A, n
+        case 0xCE: cpu_add_carry(cpu, mem->map[cpu->PC++]); break;
+
+        // SUB A, r
+        case 0x90:
+        case 0x91:
+        case 0x92:
+        case 0x93:
+        case 0x94:
+        case 0x95:
+        case 0x96:
+        case 0x97: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_sub(cpu, *operand);
+            break;
+        }
+
+        // SBC A, r
+        case 0x98:
+        case 0x99:
+        case 0x9A:
+        case 0x9B:
+        case 0x9C:
+        case 0x9D:
+        case 0x9E:
+        case 0x9F: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_sub_carry(cpu, *operand);
+            break;
+        }
+
+        // SUB A, n
+        case 0xD6: cpu_sub(cpu, mem->map[cpu->PC++]); break;
+
+        // SBC A, n
+        case 0xDE: cpu_sub_carry(cpu, mem->map[cpu->PC++]); break;
 
         // AND r
-        case 0xA0: _and(cpu, cpu->B); break;
-        case 0xA1: _and(cpu, cpu->C); break;
-        case 0xA2: _and(cpu, cpu->D); break;
-        case 0xA3: _and(cpu, cpu->E); break;
-        case 0xA4: _and(cpu, cpu->H); break;
-        case 0xA5: _and(cpu, cpu->L); break;
-        case 0xA6: _and(cpu, mem->map[cpu->HL]); break;
-        case 0xA7: _and(cpu, cpu->A); break; // cpu->A = cpu->A?
-        case 0xE6: _and(cpu, mem->map[cpu->PC++]); break;
+        case 0xA0:
+        case 0xA1:
+        case 0xA2:
+        case 0xA3:
+        case 0xA4:
+        case 0xA5:
+        case 0xA6:
+        case 0xA7: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_and(cpu, *operand);
+            break;
+        }
+
+        // AND n
+        case 0xE6: cpu_and(cpu, mem->map[cpu->PC++]); break;
 
         // XOR r
-        case 0xA8: _xor(cpu, cpu->B); break;
-        case 0xA9: _xor(cpu, cpu->C); break;
-        case 0xAA: _xor(cpu, cpu->D); break;
-        case 0xAB: _xor(cpu, cpu->E); break;
-        case 0xAC: _xor(cpu, cpu->H); break;
-        case 0xAD: _xor(cpu, cpu->L); break;
-        case 0xAE: _xor(cpu, mem->map[cpu->HL]); break;
-        case 0xAF: cpu->A = 0; break;
-        case 0xEE: _xor(cpu, mem->map[cpu->PC++]); break;
+        case 0xA8:
+        case 0xA9:
+        case 0xAA:
+        case 0xAB:
+        case 0xAC:
+        case 0xAD:
+        case 0xAE:
+        case 0xAF: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_xor(cpu, *operand);
+            break;
+        }
+
+        // XOR n
+        case 0xEE: cpu_xor(cpu, mem->map[cpu->PC++]); break;
 
         // OR r
-        case 0xB0: _or(cpu, cpu->B); break;
-        case 0xB1: _or(cpu, cpu->C); break;
-        case 0xB2: _or(cpu, cpu->D); break;
-        case 0xB3: _or(cpu, cpu->E); break;
-        case 0xB4: _or(cpu, cpu->H); break;
-        case 0xB5: _or(cpu, cpu->L); break;
-        case 0xB6: _or(cpu, mem->map[cpu->HL]); break;
-        case 0xB7: _or(cpu, cpu->A); break;
-        case 0xF6: _or(cpu, mem->map[cpu->PC++]); break;
+        case 0xB0:
+        case 0xB1:
+        case 0xB2:
+        case 0xB3:
+        case 0xB4:
+        case 0xB5:
+        case 0xB6:
+        case 0xB7: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_or(cpu, *operand);
+            break;
+        }
+
+        // OR n
+        case 0xF6: cpu_or(cpu, mem->map[cpu->PC++]); break;
 
         // CP r
-        case 0xB8: _cp(cpu, cpu->B); break;
-        case 0xB9: _cp(cpu, cpu->C); break;
-        case 0xBA: _cp(cpu, cpu->D); break;
-        case 0xBB: _cp(cpu, cpu->E); break;
-        case 0xBC: _cp(cpu, cpu->H); break;
-        case 0xBD: _cp(cpu, cpu->L); break;
-        case 0xBE: _cp(cpu, mem->map[cpu->HL]); break;
-        case 0xBF: _cp(cpu, cpu->A); break;
-        case 0xFE: _cp(cpu, mem->map[cpu->PC++]); break;
+        case 0xB8:
+        case 0xB9:
+        case 0xBA:
+        case 0xBB:
+        case 0xBC:
+        case 0xBD:
+        case 0xBE:
+        case 0xBF: {
+            uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+            cpu_cp(cpu, *operand);
+            break;
+        }
+
+        // CP n
+        case 0xFE: cpu_cp(cpu, mem->map[cpu->PC++]); break;
 
         // INC r
-        case 0x04: _inc(cpu, &cpu->B); break;
-        case 0x0C: _inc(cpu, &cpu->C); break;
-        case 0x14: _inc(cpu, &cpu->D); break;
-        case 0x1C: _inc(cpu, &cpu->E); break;
-        case 0x24: _inc(cpu, &cpu->H); break;
-        case 0x2C: _inc(cpu, &cpu->L); break;
-        case 0x34: _inc(cpu, &mem->map[cpu->HL]); break;
-        case 0x3C: _inc(cpu, &cpu->A); break;
+        case 0x04:
+        case 0x0C:
+        case 0x14:
+        case 0x1C:
+        case 0x24:
+        case 0x2C:
+        case 0x34:
+        case 0x3C: {
+            uint8_t *dest = cpu_get_dest(ctx, opcode);
+
+            cpu_inc(cpu, dest);
+            break;
+        }
 
         // DEC r
-        case 0x05: _dec(cpu, &cpu->B); break;
-        case 0x0D: _dec(cpu, &cpu->C); break;
-        case 0x15: _dec(cpu, &cpu->D); break;
-        case 0x1D: _dec(cpu, &cpu->E); break;
-        case 0x25: _dec(cpu, &cpu->H); break;
-        case 0x2D: _dec(cpu, &cpu->L); break;
-        case 0x35: _dec(cpu, &mem->map[cpu->HL]); break;
-        case 0x3D: _dec(cpu, &cpu->A); break;
+        case 0x05:
+        case 0x0D:
+        case 0x15:
+        case 0x1D:
+        case 0x25:
+        case 0x2D:
+        case 0x35:
+        case 0x3D: {
+            uint8_t *dest = cpu_get_dest(ctx, opcode);
+
+            cpu_dec(cpu, dest);
+            break;
+        }
 
         // --- 16bit ------------------------------
 
         // ADD HL, r
-        case 0x09: _add16(cpu, cpu->BC); break;
-        case 0x19: _add16(cpu, cpu->DE); break;
-        case 0x29: _add16(cpu, cpu->HL); break;
-        case 0x39: _add16(cpu, cpu->SP); break;
+        case 0x09: cpu_add16(cpu, cpu->BC); break;
+        case 0x19: cpu_add16(cpu, cpu->DE); break;
+        case 0x29: cpu_add16(cpu, cpu->HL); break;
+        case 0x39: cpu_add16(cpu, cpu->SP); break;
 
         // ADD SP, n
-        case 0xE8:
-            value = mem->map[cpu->PC++];
+        case 0xE8: {
+            int value = (int8_t)mem->map[cpu->PC++];
 
-            cpu_set_z(cpu, false);
+            cpu_set_z(cpu, false); // TODO: Is this flag correct? Not set in cpu_add16
             cpu_set_n(cpu, false);
-            // TODO: Does checking for overflow happen with signed data as well?
             cpu_set_c(cpu, cpu->SP + value > 0xFFFF);
             cpu_set_h(cpu, (cpu->SP & 0xFF) + (value & 0xFF) > 0xFF);
 
-            cpu->SP += (int8_t)value;
-
+            cpu->SP += value;
             break;
+        }
 
         // INC r
         case 0x03: cpu->BC++; break;
@@ -665,51 +781,7 @@ int cpu_run(context_t *ctx)
         // ___ Miscellaneous __________________________________
 
         // DAA
-        case 0x27:
-        /*
-            The processor will have set the adjust flag if the
-            sum of both lower nibbles is 16 or higher, and the
-            carry flag if the sum of both bytes is 256 or higher.
-            adjust flag = half carry flag
-        */
-        {
-            // We need t to be > 16 bits to hold the carry bit
-            unsigned int t = cpu->A;
-            
-            // Thank you, MAME
-            if (cpu_get_n(cpu)) {
-                // Last operation was a subtraction
-                if (cpu_get_h(cpu))
-                {
-                    t -= 0x6;
-                    
-                    if (!cpu_get_c(cpu))
-                    {
-                        t &= 0xFF;
-                    }
-                }
-                
-                if (cpu_get_c(cpu))
-                {
-                    t -= 0x60;
-                }
-            } else {
-                // Last operation was an addition
-                if ((t & 0xF) > 0x9 || cpu_get_h(cpu)) {
-                    t += 0x6;
-                }
-                
-                if (t > 0x9F || cpu_get_c(cpu)) {
-                    t += 0x60;
-                }
-            }
-            
-            cpu->A = t & 0xFF;
-            cpu_set_c(cpu, t > 0xFFFF);
-            cpu_set_z(cpu, cpu->A == 0);
-            cpu_set_h(cpu, false);
-        }
-        break;
+        case 0x27: cpu_daa(cpu); break;
 
         // CPL
         case 0x2F:
@@ -745,22 +817,22 @@ int cpu_run(context_t *ctx)
 
         // RLCA
         case 0x07:
-            _rotate_l(cpu, &cpu->A);
+            cpu_rotate_l(cpu, &cpu->A);
             break;
 
         // RLA
         case 0x17:
-            _rotate_l_carry(cpu, &cpu->A);
+            cpu_rotate_l_carry(cpu, &cpu->A);
             break;
 
         // RRCA
         case 0x0F:
-            _rotate_r(cpu, &cpu->A);
+            cpu_rotate_r(cpu, &cpu->A);
             break;
 
         // RRA
         case 0x1F:
-            _rotate_r_carry(cpu, &cpu->A);
+            cpu_rotate_r_carry(cpu, &cpu->A);
             break;
 
         case 0xCB:
@@ -768,85 +840,125 @@ int cpu_run(context_t *ctx)
             switch (opcode)
             {
                 // RLC r
-                case 0x00: _rotate_l(cpu, &cpu->B); break;
-                case 0x01: _rotate_l(cpu, &cpu->C); break;
-                case 0x02: _rotate_l(cpu, &cpu->D); break;
-                case 0x03: _rotate_l(cpu, &cpu->E); break;
-                case 0x04: _rotate_l(cpu, &cpu->H); break;
-                case 0x05: _rotate_l(cpu, &cpu->L); break;
-                case 0x06: _rotate_l(cpu, &mem->map[cpu->HL]); break;
-                case 0x07: _rotate_l(cpu, &cpu->A); break;
+                case 0x00:
+                case 0x01:
+                case 0x02:
+                case 0x03:
+                case 0x04:
+                case 0x05:
+                case 0x06:
+                case 0x07: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_rotate_l(cpu, operand);
+                    break;
+                }
 
                 // RRC r
-                case 0x08: _rotate_r(cpu, &cpu->B); break;
-                case 0x09: _rotate_r(cpu, &cpu->C); break;
-                case 0x0A: _rotate_r(cpu, &cpu->D); break;
-                case 0x0B: _rotate_r(cpu, &cpu->E); break;
-                case 0x0C: _rotate_r(cpu, &cpu->H); break;
-                case 0x0D: _rotate_r(cpu, &cpu->L); break;
-                case 0x0E: _rotate_r(cpu, &mem->map[cpu->HL]); break;
-                case 0x0F: _rotate_r(cpu, &cpu->A); break;
+                case 0x08:
+                case 0x09:
+                case 0x0A:
+                case 0x0B:
+                case 0x0C:
+                case 0x0D:
+                case 0x0E:
+                case 0x0F: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_rotate_r(cpu, operand);
+                    break;
+                }
 
                 // RL r
-                case 0x10: _rotate_l_carry(cpu, &cpu->B); break;
-                case 0x11: _rotate_l_carry(cpu, &cpu->C); break;
-                case 0x12: _rotate_l_carry(cpu, &cpu->D); break;
-                case 0x13: _rotate_l_carry(cpu, &cpu->E); break;
-                case 0x14: _rotate_l_carry(cpu, &cpu->H); break;
-                case 0x15: _rotate_l_carry(cpu, &cpu->L); break;
-                case 0x16: _rotate_l_carry(cpu, &mem->map[cpu->HL]); break;
-                case 0x17: _rotate_l_carry(cpu, &cpu->A); break;
+                case 0x10:
+                case 0x11:
+                case 0x12:
+                case 0x13:
+                case 0x14:
+                case 0x15:
+                case 0x16:
+                case 0x17: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_rotate_l_carry(cpu, operand);
+                    break;
+                }
 
 
                 // RR r
-                case 0x18: _rotate_r_carry(cpu, &cpu->B); break;
-                case 0x19: _rotate_r_carry(cpu, &cpu->C); break;
-                case 0x1A: _rotate_r_carry(cpu, &cpu->D); break;
-                case 0x1B: _rotate_r_carry(cpu, &cpu->E); break;
-                case 0x1C: _rotate_r_carry(cpu, &cpu->H); break;
-                case 0x1D: _rotate_r_carry(cpu, &cpu->L); break;
-                case 0x1E: _rotate_r_carry(cpu, &mem->map[cpu->HL]); break;
-                case 0x1F: _rotate_r_carry(cpu, &cpu->A); break;
+                case 0x18:
+                case 0x19:
+                case 0x1A:
+                case 0x1B:
+                case 0x1C:
+                case 0x1D:
+                case 0x1E:
+                case 0x1F: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_rotate_r_carry(cpu, operand);
+                    break;
+                }
 
                 // SLA r
-                case 0x20: _shift_l(cpu, &cpu->B); break;
-                case 0x21: _shift_l(cpu, &cpu->C); break;
-                case 0x22: _shift_l(cpu, &cpu->D); break;
-                case 0x23: _shift_l(cpu, &cpu->E); break;
-                case 0x24: _shift_l(cpu, &cpu->H); break;
-                case 0x25: _shift_l(cpu, &cpu->L); break;
-                case 0x26: _shift_l(cpu, &mem->map[cpu->HL]); break;
-                case 0x27: _shift_l(cpu, &cpu->A); break;
+                case 0x20:
+                case 0x21:
+                case 0x22:
+                case 0x23:
+                case 0x24:
+                case 0x25:
+                case 0x26:
+                case 0x27: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_shift_l(cpu, operand);
+                    break;
+                }
 
                 // SRA r
-                case 0x28: _shift_r_arithm(cpu, &cpu->B); break;
-                case 0x29: _shift_r_arithm(cpu, &cpu->C); break;
-                case 0x2A: _shift_r_arithm(cpu, &cpu->D); break;
-                case 0x2B: _shift_r_arithm(cpu, &cpu->E); break;
-                case 0x2C: _shift_r_arithm(cpu, &cpu->H); break;
-                case 0x2D: _shift_r_arithm(cpu, &cpu->L); break;
-                case 0x2E: _shift_r_arithm(cpu, &mem->map[cpu->HL]); break;
-                case 0x2F: _shift_r_arithm(cpu, &cpu->A); break;
+                case 0x28:
+                case 0x29:
+                case 0x2A:
+                case 0x2B:
+                case 0x2C:
+                case 0x2D:
+                case 0x2E:
+                case 0x2F: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_shift_r_arithm(cpu, operand);
+                    break;
+                }
 
                 // SWAP r
-                case 0x30: _swap(cpu, &cpu->B); break;
-                case 0x31: _swap(cpu, &cpu->C); break;
-                case 0x32: _swap(cpu, &cpu->D); break;
-                case 0x33: _swap(cpu, &cpu->E); break;
-                case 0x34: _swap(cpu, &cpu->H); break;
-                case 0x35: _swap(cpu, &cpu->L); break;
-                case 0x36: _swap(cpu, &mem->map[cpu->HL]); break;
-                case 0x37: _swap(cpu, &cpu->A); break;
+                case 0x30:
+                case 0x31:
+                case 0x32:
+                case 0x33:
+                case 0x34:
+                case 0x35:
+                case 0x36:
+                case 0x37: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_swap(cpu, operand);
+                    break;
+                }
 
                 // SRL r
-                case 0x38: _shift_r_logic(cpu, &cpu->B); break;
-                case 0x39: _shift_r_logic(cpu, &cpu->C); break;
-                case 0x3A: _shift_r_logic(cpu, &cpu->D); break;
-                case 0x3B: _shift_r_logic(cpu, &cpu->E); break;
-                case 0x3C: _shift_r_logic(cpu, &cpu->H); break;
-                case 0x3D: _shift_r_logic(cpu, &cpu->L); break;
-                case 0x3E: _shift_r_logic(cpu, &mem->map[cpu->HL]); break;
-                case 0x3F: _shift_r_logic(cpu, &cpu->A); break;
+                case 0x38:
+                case 0x39:
+                case 0x3A:
+                case 0x3B:
+                case 0x3C:
+                case 0x3D:
+                case 0x3E:
+                case 0x3F: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+
+                    cpu_shift_r_logic(cpu, operand);
+                    break;
+                }
 
                 // BIT n,B
                 case 0x40:
@@ -857,11 +969,6 @@ int cpu_run(context_t *ctx)
                 case 0x68:
                 case 0x70:
                 case 0x78:
-                    cpu_set_z(cpu, !bit_is_set(cpu->B, (opcode - 0x40) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,C
                 case 0x41:
                 case 0x49:
@@ -871,11 +978,6 @@ int cpu_run(context_t *ctx)
                 case 0x69:
                 case 0x71:
                 case 0x79:
-                    cpu_set_z(cpu, !bit_is_set(cpu->C, (opcode - 0x41) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,D
                 case 0x42:
                 case 0x4A:
@@ -885,11 +987,6 @@ int cpu_run(context_t *ctx)
                 case 0x6A:
                 case 0x72:
                 case 0x7A:
-                    cpu_set_z(cpu, !bit_is_set(cpu->D, (opcode - 0x42) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,E
                 case 0x43:
                 case 0x4B:
@@ -899,11 +996,6 @@ int cpu_run(context_t *ctx)
                 case 0x6B:
                 case 0x73:
                 case 0x7B:
-                    cpu_set_z(cpu, !bit_is_set(cpu->E, (opcode - 0x43) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,H
                 case 0x44:
                 case 0x4C:
@@ -913,11 +1005,6 @@ int cpu_run(context_t *ctx)
                 case 0x6C:
                 case 0x74:
                 case 0x7C:
-                    cpu_set_z(cpu, !bit_is_set(cpu->H, (opcode - 0x44) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,L
                 case 0x45:
                 case 0x4D:
@@ -927,11 +1014,6 @@ int cpu_run(context_t *ctx)
                 case 0x6D:
                 case 0x75:
                 case 0x7D:
-                    cpu_set_z(cpu, !bit_is_set(cpu->L, (opcode - 0x45) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,(HL)
                 case 0x46:
                 case 0x4E:
@@ -941,12 +1023,6 @@ int cpu_run(context_t *ctx)
                 case 0x6E:
                 case 0x76:
                 case 0x7E:
-                    cpu_set_z(cpu, !bit_is_set(mem->map[cpu->HL],
-                        (opcode - 0x46) / 8));
-                    cpu_set_n(cpu, false);
-                    cpu_set_h(cpu, true);
-                    break;
-
                 // BIT n,A
                 case 0x47:
                 case 0x4F:
@@ -955,11 +1031,16 @@ int cpu_run(context_t *ctx)
                 case 0x67:
                 case 0x6F:
                 case 0x77:
-                case 0x7F:
-                    cpu_set_z(cpu, !bit_is_set(cpu->A, (opcode - 0x47) / 8));
+                case 0x7F: {
+                    uint8_t *operand = cpu_get_operand(ctx, opcode);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    cpu_set_z(cpu, !bit_is_set(*operand, bit));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
+
                     break;
+                }
 
                 // RES n,B
                 case 0x80:
@@ -970,9 +1051,6 @@ int cpu_run(context_t *ctx)
                 case 0xA8:
                 case 0xB0:
                 case 0xB8:
-                    cpu->B = bit_unset(cpu->B, (opcode - 0x80) / 8);
-                    break;
-
                 // RES n,C
                 case 0x81:
                 case 0x89:
@@ -982,9 +1060,6 @@ int cpu_run(context_t *ctx)
                 case 0xA9:
                 case 0xB1:
                 case 0xB9:
-                    cpu->C = bit_unset(cpu->C, (opcode - 0x81) / 8);
-                    break;
-
                 // RES n,D
                 case 0x82:
                 case 0x8A:
@@ -994,9 +1069,6 @@ int cpu_run(context_t *ctx)
                 case 0xAA:
                 case 0xB2:
                 case 0xBA:
-                    cpu->D = bit_unset(cpu->D, (opcode - 0x82) / 8);
-                    break;
-
                 // RES n,E
                 case 0x83:
                 case 0x8B:
@@ -1006,9 +1078,6 @@ int cpu_run(context_t *ctx)
                 case 0xAB:
                 case 0xB3:
                 case 0xBB:
-                    cpu->E = bit_unset(cpu->E, (opcode - 0x83) / 8);
-                    break;
-
                 // RES n,H
                 case 0x84:
                 case 0x8C:
@@ -1018,9 +1087,6 @@ int cpu_run(context_t *ctx)
                 case 0xAC:
                 case 0xB4:
                 case 0xBC:
-                    cpu->H = bit_unset(cpu->H, (opcode - 0x84) / 8);
-                    break;
-
                 // RES n,L
                 case 0x85:
                 case 0x8D:
@@ -1030,9 +1096,6 @@ int cpu_run(context_t *ctx)
                 case 0xAD:
                 case 0xB5:
                 case 0xBD:
-                    cpu->L = bit_unset(cpu->L, (opcode - 0x85) / 8);
-                    break;
-
                 // RES n,(HL)
                 case 0x86:
                 case 0x8E:
@@ -1042,10 +1105,6 @@ int cpu_run(context_t *ctx)
                 case 0xAE:
                 case 0xB6:
                 case 0xBE:
-                    *&mem->map[cpu->HL] = bit_unset(*&mem->map[cpu->HL],
-                        (opcode - 0x86) / 8);
-                    break;
-
                 // RES n,A
                 case 0x87:
                 case 0x8F:
@@ -1054,9 +1113,13 @@ int cpu_run(context_t *ctx)
                 case 0xA7:
                 case 0xAF:
                 case 0xB7:
-                case 0xBF:
-                    cpu->A = bit_unset(cpu->A, (opcode - 0x87) / 8);
+                case 0xBF: {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    *operand = bit_unset(*operand, bit);
                     break;
+                }
 
                 // SET n,B
                 case 0xC0:
@@ -1067,9 +1130,6 @@ int cpu_run(context_t *ctx)
                 case 0xE8:
                 case 0xF0:
                 case 0xF8:
-                    cpu->B = bit_set(cpu->B, (opcode - 0xC0) / 8);
-                    break;
-
                 // SET n,C
                 case 0xC1:
                 case 0xC9:
@@ -1079,9 +1139,6 @@ int cpu_run(context_t *ctx)
                 case 0xE9:
                 case 0xF1:
                 case 0xF9:
-                    cpu->C = bit_set(cpu->C, (opcode - 0xC1) / 8);
-                    break;
-
                 // SET n,D
                 case 0xC2:
                 case 0xCA:
@@ -1091,9 +1148,6 @@ int cpu_run(context_t *ctx)
                 case 0xEA:
                 case 0xF2:
                 case 0xFA:
-                    cpu->D = bit_set(cpu->D, (opcode - 0xC2) / 8);
-                    break;
-
                 // SET n,E
                 case 0xC3:
                 case 0xCB:
@@ -1103,9 +1157,6 @@ int cpu_run(context_t *ctx)
                 case 0xEB:
                 case 0xF3:
                 case 0xFB:
-                    cpu->E = bit_set(cpu->E, (opcode - 0xC3) / 8);
-                    break;
-
                 // SET n,H
                 case 0xC4:
                 case 0xCC:
@@ -1115,9 +1166,6 @@ int cpu_run(context_t *ctx)
                 case 0xEC:
                 case 0xF4:
                 case 0xFC:
-                    cpu->H = bit_set(cpu->H, (opcode - 0xC4) / 8);
-                    break;
-
                 // SET n,L
                 case 0xC5:
                 case 0xCD:
@@ -1127,9 +1175,6 @@ int cpu_run(context_t *ctx)
                 case 0xED:
                 case 0xF5:
                 case 0xFD:
-                    cpu->L = bit_set(cpu->L, (opcode - 0xC5) / 8);
-                    break;
-
                 // SET n,(HL)
                 case 0xC6:
                 case 0xCE:
@@ -1139,10 +1184,6 @@ int cpu_run(context_t *ctx)
                 case 0xEE:
                 case 0xF6:
                 case 0xFE:
-                    mem->map[cpu->HL] = bit_set(mem->map[cpu->HL],
-                        (opcode - 0xC6) / 8);
-                    break;
-
                 // SET n,A
                 case 0xC7:
                 case 0xCF:
@@ -1152,25 +1193,27 @@ int cpu_run(context_t *ctx)
                 case 0xEF:
                 case 0xF7:
                 case 0xFF:
-                    cpu->A = bit_set(cpu->A, (opcode - 0xC7) / 8);
+                {
+                    uint8_t* operand = cpu_get_operand(ctx, opcode);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    *operand = bit_set(*operand, bit);
                     break;
+                }
 
                 default:
                     printf("FATAL: unhandled opcode 0xCB%02X at %X\n", opcode, cpu->PC);
                     cpu->halted = true;
-                    goto exit_loop;
+                    return 0;
             }
 
-            cycles += ext_opcode_meta[value].cycles;
-            break;
+            return ext_opcode_meta[opcode].cycles;
 
         default:
             printf("FATAL: unhandled opcode 0x%02X at %X\n", opcode, cpu->PC);
             ctx->cpu.halted = true;
-            goto exit_loop;
+            return 0;
     }
 
-    exit_loop:
-    cycles += opcode_meta[opcode].cycles;
-    return cycles;
+    return opcode_meta[opcode].cycles;
 }

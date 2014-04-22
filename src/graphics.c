@@ -690,8 +690,6 @@ static void draw_line(context_t *ctx) {
                 sprite->x, sprite->y + (screen_y - sprite->y), TILE_WIDTH
             );
 
-            // TODO: Flipping
-
             draw_tile(
                 &dst,
                 &src,

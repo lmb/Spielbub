@@ -273,7 +273,7 @@ opcode_meta_t const opcode_meta[] = {
 	/* 0xC8 */ OPCODE(             "RET Z",  8),
 	/* 0xC9 */ OPCODE(               "RET",  8),
 	/* 0xCA */ OPCODE(           "JP Z,#h", 12),
-	/* 0xCB */ OPCODE(          "EXTENDED",  0),
+	/* 0xCB */ {0, 0},
 	/* 0xCC */ OPCODE(         "CALL Z,#h", 12),
 	/* 0xCD */ OPCODE(           "CALL #h", 12),
 	/* 0xCE */ OPCODE(            "ADC *h",  8),

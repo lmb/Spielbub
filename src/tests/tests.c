@@ -50,10 +50,10 @@ START_TEST (test_cpu_stack)
 {
     uint16_t old_sp = ctx.cpu.SP;
 
-    _push(&ctx, 0x1234);
+    cpu_push(&ctx, 0x1234);
 
     fail_unless(ctx.cpu.SP == old_sp - 2);
-    fail_unless(_pop(&ctx) == 0x1234);
+    fail_unless(cpu_pop(&ctx) == 0x1234);
 }
 END_TEST
 
@@ -67,27 +67,27 @@ START_TEST (test_cpu_add)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _add(&cpu, 0xD, false);
+    cpu_add(&cpu, 0xD);
 
-    fail_unless(cpu.A == 0xD, "_add failed, A = %d", cpu.A);
-    fail_unless(!cpu_get_z(&cpu), "_add set Z flag");
-    fail_unless(!cpu_get_n(&cpu), "_add failed to reset N flag");
+    fail_unless(cpu.A == 0xD, "cpu_add failed, A = %d", cpu.A);
+    fail_unless(!cpu_get_z(&cpu), "cpu_add set Z flag");
+    fail_unless(!cpu_get_n(&cpu), "cpu_add failed to reset N flag");
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _add(&cpu, 0x3, false);
+    cpu_add(&cpu, 0x3);
 
     fail_unless(cpu.A == 0x10);
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(cpu_get_h(&cpu));
 
-    _add(&cpu, 0xEF, false);
+    cpu_add(&cpu, 0xEF);
 
     fail_unless(cpu.A == 0xFF);
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _add(&cpu, 1, false);
+    cpu_add(&cpu, 1);
 
     fail_unless(cpu.A == 0);
     fail_unless(cpu_get_c(&cpu));
@@ -104,20 +104,20 @@ START_TEST (test_cpu_add16)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _add16(&cpu, 0x1001);
+    cpu_add16(&cpu, 0x1001);
 
     fail_unless(cpu.HL == 0x1001);
     fail_unless(!cpu_get_n(&cpu));
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _add16(&cpu, 0xFF);
+    cpu_add16(&cpu, 0xFF);
 
     fail_unless(cpu.HL == 0x1100);
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(cpu_get_h(&cpu));
 
-    _add16(&cpu, 0xef00);
+    cpu_add16(&cpu, 0xef00);
 
     fail_unless(cpu.HL == 0);
     fail_unless(cpu_get_c(&cpu));
@@ -134,29 +134,29 @@ START_TEST (test_cpu_sub)
     cpu_set_n(&cpu, false);
     cpu_set_c(&cpu, true);
 
-    _sub(&cpu, 0xF, false);
+    cpu_sub(&cpu, 0xF);
 
-    fail_unless(cpu.A == 0xF0, "_sub failed, A = %d", cpu.A);
-    fail_unless(!cpu_get_z(&cpu), "_sub set Z flag");
-    fail_unless(cpu_get_n(&cpu), "_sub failed to set N flag");
-    fail_unless(!cpu_get_c(&cpu), "_sub set C flag");
+    fail_unless(cpu.A == 0xF0, "cpu_sub failed, A = %d", cpu.A);
+    fail_unless(!cpu_get_z(&cpu), "cpu_sub set Z flag");
+    fail_unless(cpu_get_n(&cpu), "cpu_sub failed to set N flag");
+    fail_unless(!cpu_get_c(&cpu), "cpu_sub set C flag");
     fail_unless(!cpu_get_h(&cpu));
 
-    _sub(&cpu, 0xF, false);
+    cpu_sub(&cpu, 0xF);
 
     fail_unless(cpu.A == 0xE1);
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(cpu_get_h(&cpu));
 
-    _sub(&cpu, 0xE1, false);
+    cpu_sub(&cpu, 0xE1);
 
-    fail_unless(cpu.A == 0, "_sub failed, A = %d", cpu.A);
-    fail_unless(cpu_get_z(&cpu), "_sub failed to set Z flag");
+    fail_unless(cpu.A == 0, "cpu_sub failed, A = %d", cpu.A);
+    fail_unless(cpu_get_z(&cpu), "cpu_sub failed to set Z flag");
 
-    _sub(&cpu, 1, false);
+    cpu_sub(&cpu, 1);
 
-    fail_unless(cpu.A == 0xFF, "_sub with underflow failed, A = %d", cpu.A);
-    fail_unless(cpu_get_c(&cpu), "_sub failed to set C flag");
+    fail_unless(cpu.A == 0xFF, "cpu_sub with underflow failed, A = %d", cpu.A);
+    fail_unless(cpu_get_c(&cpu), "cpu_sub failed to set C flag");
 }
 END_TEST
 
@@ -169,7 +169,7 @@ START_TEST (test_cpu_inc)
     cpu_set_z(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _inc(&cpu, &reg);
+    cpu_inc(&cpu, &reg);
 
     fail_unless(reg == 1);
     fail_unless(!cpu_get_n(&cpu));
@@ -177,13 +177,13 @@ START_TEST (test_cpu_inc)
     fail_unless(!cpu_get_h(&cpu));
 
     reg = 0x0F;
-    _inc(&cpu, &reg);
+    cpu_inc(&cpu, &reg);
 
     fail_unless(reg == 0x10);
     fail_unless(cpu_get_h(&cpu));
 
     reg = 0xFF;
-    _inc(&cpu, &reg);
+    cpu_inc(&cpu, &reg);
 
     fail_unless(reg == 0);
     fail_unless(cpu_get_z(&cpu));
@@ -199,7 +199,7 @@ START_TEST (test_cpu_dec)
     cpu_set_z(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _dec(&cpu, &reg);
+    cpu_dec(&cpu, &reg);
 
     fail_unless(reg == 0xFE);
     fail_unless(cpu_get_n(&cpu));
@@ -207,7 +207,7 @@ START_TEST (test_cpu_dec)
     fail_unless(!cpu_get_h(&cpu));
 
     reg = 0;
-    _dec(&cpu, &reg);
+    cpu_dec(&cpu, &reg);
 
     fail_unless(reg == 0xFF);
     fail_unless(!cpu_get_z(&cpu));
@@ -225,7 +225,7 @@ START_TEST (test_cpu_and)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, false);
 
-    _and(&cpu, 0xF0);
+    cpu_and(&cpu, 0xF0);
 
     fail_unless(cpu.A == 0x50);
     fail_unless(!cpu_get_z(&cpu));
@@ -233,7 +233,7 @@ START_TEST (test_cpu_and)
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(cpu_get_h(&cpu));
 
-    _and(&cpu, 0x00);
+    cpu_and(&cpu, 0x00);
 
     fail_unless(cpu.A == 0);
     fail_unless(cpu_get_z(&cpu));
@@ -250,7 +250,7 @@ START_TEST (test_cpu_or)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _or(&cpu, 0x05);
+    cpu_or(&cpu, 0x05);
 
     fail_unless(cpu.A == 0x55);
     fail_unless(!cpu_get_z(&cpu));
@@ -259,7 +259,7 @@ START_TEST (test_cpu_or)
     fail_unless(!cpu_get_h(&cpu));
 
     cpu.A = 0;
-    _or(&cpu, 0x00);
+    cpu_or(&cpu, 0x00);
 
     fail_unless(cpu.A == 0);
     fail_unless(cpu_get_z(&cpu));
@@ -276,7 +276,7 @@ START_TEST (test_cpu_xor)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _xor(&cpu, 0xAA);
+    cpu_xor(&cpu, 0xAA);
 
     fail_unless(cpu.A == 0xFF);
     fail_unless(!cpu_get_z(&cpu));
@@ -284,7 +284,7 @@ START_TEST (test_cpu_xor)
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _xor(&cpu, 0xFF);
+    cpu_xor(&cpu, 0xFF);
 
     fail_unless(cpu.A == 0);
     fail_unless(cpu_get_z(&cpu));
@@ -301,7 +301,7 @@ START_TEST (test_cpu_cp)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _cp(&cpu, 0x02);
+    cpu_cp(&cpu, 0x02);
 
     fail_unless(cpu.A == 0x22);
     fail_unless(!cpu_get_z(&cpu));
@@ -309,12 +309,12 @@ START_TEST (test_cpu_cp)
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _cp(&cpu, 0x22);
+    cpu_cp(&cpu, 0x22);
 
     fail_unless(cpu_get_z(&cpu));
     fail_unless(!cpu_get_c(&cpu));
 
-    _cp(&cpu, 0x23);
+    cpu_cp(&cpu, 0x23);
 
     fail_unless(!cpu_get_z(&cpu));
     fail_unless(cpu_get_c(&cpu));
@@ -331,7 +331,7 @@ START_TEST (test_cpu_swap)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _swap(&cpu, &reg);
+    cpu_swap(&cpu, &reg);
 
     fail_unless(reg == 0x54);
     fail_unless(!cpu_get_z(&cpu));
@@ -340,7 +340,7 @@ START_TEST (test_cpu_swap)
     fail_unless(!cpu_get_h(&cpu));
 
     reg = 0;
-    _swap(&cpu, &reg);
+    cpu_swap(&cpu, &reg);
 
     fail_unless(cpu_get_z(&cpu));
 }
@@ -359,7 +359,7 @@ START_TEST (test_cpu_rotate)
     cpu_set_c(&cpu, false);
     cpu_set_h(&cpu, true);
 
-    _rotate_l(&cpu, &reg);
+    cpu_rotate_l(&cpu, &reg);
 
     fail_unless(reg == 0x55);
     fail_unless(!cpu_get_z(&cpu));
@@ -370,7 +370,7 @@ START_TEST (test_cpu_rotate)
     cpu_set_c(&cpu, false);
     reg = 0xAA;
 
-    _rotate_l_carry(&cpu, &reg);
+    cpu_rotate_l_carry(&cpu, &reg);
 
     fail_unless(reg == 0x54);
     fail_unless(cpu_get_c(&cpu));
@@ -383,7 +383,7 @@ START_TEST (test_cpu_rotate)
     cpu_set_c(&cpu, false);
     cpu_set_h(&cpu, true);
 
-    _rotate_r(&cpu, &reg);
+    cpu_rotate_r(&cpu, &reg);
 
     fail_unless(reg == 0xAA);
     fail_unless(!cpu_get_z(&cpu));
@@ -394,7 +394,7 @@ START_TEST (test_cpu_rotate)
     cpu_set_c(&cpu, false);
     reg = 0x55;
 
-    _rotate_r_carry(&cpu, &reg);
+    cpu_rotate_r_carry(&cpu, &reg);
 
     fail_unless(reg == 0x2A);
     fail_unless(cpu_get_c(&cpu));
@@ -412,7 +412,7 @@ START_TEST (test_cpu_shift)
     cpu_set_c(&cpu, false);
     cpu_set_h(&cpu, true);
 
-    _shift_l(&cpu, &reg);
+    cpu_shift_l(&cpu, &reg);
 
     fail_unless(reg == 0x54);
     fail_unless(!cpu_get_z(&cpu));
@@ -421,7 +421,7 @@ START_TEST (test_cpu_shift)
     fail_unless(!cpu_get_h(&cpu));
 
     reg = 0;
-    _shift_l(&cpu, &reg);
+    cpu_shift_l(&cpu, &reg);
 
     fail_unless(cpu_get_z(&cpu));
 
@@ -433,7 +433,7 @@ START_TEST (test_cpu_shift)
     cpu_set_c(&cpu, false);
     cpu_set_h(&cpu, true);
 
-    _shift_r_logic(&cpu, &reg);
+    cpu_shift_r_logic(&cpu, &reg);
 
     fail_unless(reg == 0x2A);
     fail_unless(!cpu_get_z(&cpu));
@@ -442,7 +442,7 @@ START_TEST (test_cpu_shift)
     fail_unless(!cpu_get_h(&cpu));
 
     reg = 0;
-    _shift_r_logic(&cpu, &reg);
+    cpu_shift_r_logic(&cpu, &reg);
 
     fail_unless(cpu_get_z(&cpu));
 
@@ -454,7 +454,7 @@ START_TEST (test_cpu_shift)
     cpu_set_c(&cpu, true);
     cpu_set_h(&cpu, true);
 
-    _shift_r_arithm(&cpu, &reg);
+    cpu_shift_r_arithm(&cpu, &reg);
 
     fail_unless(reg == 0xD5);
     fail_unless(!cpu_get_z(&cpu));
@@ -462,13 +462,13 @@ START_TEST (test_cpu_shift)
     fail_unless(!cpu_get_c(&cpu));
     fail_unless(!cpu_get_h(&cpu));
 
-    _shift_r_arithm(&cpu, &reg);
+    cpu_shift_r_arithm(&cpu, &reg);
 
     fail_unless(reg == 0xEA);
     fail_unless(cpu_get_c(&cpu));
 
     reg = 0;
-    _shift_r_arithm(&cpu, &reg);
+    cpu_shift_r_arithm(&cpu, &reg);
 
     fail_unless(reg == 0);
     fail_unless(cpu_get_z(&cpu));
@@ -691,69 +691,6 @@ int main(void)
 }
 
 /* -------------------------------------------------------------------------- */
-
-static uint8_t* op_get_src(context_t *ctx, uint8_t opcode) {
-    cpu_t *cpu = &ctx->cpu;
-    
-    assert(0x40 <= opcode && opcode < 0xC0);
-    
-    opcode %= 0x8;
-    
-    switch (opcode)
-    {
-        case 0x0: // B
-            return &cpu->B;
-        case 0x1: // C
-            return &cpu->C;
-        case 0x2: // D
-            return &cpu->D;
-        case 0x3: // E
-            return &cpu->E;
-        case 0x4: // H
-            return &cpu->H;
-        case 0x5: // L
-            return &cpu->L;
-        case 0x6: // addr in HL
-            return &ctx->mem.map[cpu->HL];
-        case 0x7: // A
-            return &cpu->A;
-            
-        default:
-            return NULL;
-    }
-}
-
-static uint8_t* op_get_dst(context_t *ctx, uint8_t opcode) {
-    cpu_t *cpu = &ctx->cpu;
-    
-    assert(0x40 <= opcode && opcode < 0xA0);
-    
-    opcode /= 0x8;
-    opcode -= 0x8;
-    
-    switch (opcode) {
-        case 0x0: // B
-            return &cpu->B;
-        case 0x1: // C
-            return &cpu->C;
-        case 0x2: // D
-            return &cpu->D;
-        case 0x3: // E
-            return &cpu->E;
-        case 0x4: // H
-            return &cpu->H;
-        case 0x5: // L
-            return &cpu->L;
-        case 0x6: // addr in HL
-            return &ctx->mem.map[cpu->HL];
-        case 0x7: // A
-            return &cpu->A;
-            
-        default:
-            return NULL;
-    }
-}
-
 void cpu_setup_test(context_t *ctx, uint8_t opcode)
 {
     // This resets all registers.
@@ -772,14 +709,17 @@ void cpu_test_store(context_t *ctx, uint8_t opcode, uint8_t value)
 {
     cpu_setup_test(ctx, opcode);
     
-    uint8_t *src = op_get_src(ctx, opcode), *dst;
+    uint8_t* src = cpu_get_operand(ctx, opcode);
+    uint8_t* dst = cpu_get_dest(ctx, opcode);
     
+    assert(src != NULL);
+    assert(dst != NULL);
+
     *src = value;
-    dst = op_get_dst(ctx, opcode);
 
     cpu_run(ctx);
 
-    fail_unless(*dst == *src, "Opcode 0x%02X: failed with src = %p, dst = %p",
-        opcode, *src, *dst);
+    fail_unless(*dst == *src && *dst == value,
+        "Opcode 0x%02X: failed with src = %p, dst = %p", opcode, *src, *dst);
 }
 
