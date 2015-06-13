@@ -44,4 +44,4 @@ solution "Spielbub"
    project "Spiellib"
       kind "StaticLib"
       language "C"
-      files { "src/*.h", "src/*.c" }
+      files { "src/*.h", "src/*.c", "src/graphics/*.c" }

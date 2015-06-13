@@ -12,7 +12,7 @@ bool debug_init(debug_t* dbg)
 void debug_free(debug_t *dbg)
 {
     if (dbg->window != NULL) {
-        graphics_free_window(dbg->window);
+        window_free(dbg->window);
     }
 }
 
@@ -25,7 +25,7 @@ void debug_draw_tiles(const context_t* ctx, debug_t* dbg)
         graphics_draw_tile(ctx, dbg->window, i, x, y);
     }
 
-    graphics_draw_window(dbg->window);
+    window_draw(dbg->window);
 }
 
 void debug_print_func(const context_t* ctx, uint16_t addr)

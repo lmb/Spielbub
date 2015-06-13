@@ -249,7 +249,7 @@ static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
     (void)ctx;
 
     if (!dbg->show_tiles) {
-        dbg->window = graphics_create_window(
+        dbg->window = window_create(
             "Tiles",
             (DBG_TILES_PER_ROW) * (TILE_WIDTH + 1),
             CEIL(MAX_TILES, DBG_TILES_PER_ROW) * (TILE_HEIGHT + 1)
@@ -260,7 +260,7 @@ static void exec_viewtiles(const char* args, context_t* ctx, debug_t* dbg)
             return;
         }
     } else {
-        graphics_free_window(dbg->window);
+        window_free(dbg->window);
         dbg->window = NULL;
     }
 

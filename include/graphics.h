@@ -5,6 +5,8 @@
 
 #include "spielbub.h"
 
+#include "window.h"
+
 #define SPRITES_PER_LINE (10)
 #define MAP_WIDTH (256)
 #define MAP_HEIGHT (256)
@@ -13,19 +15,11 @@ typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
 } gfx_state_t;
 
-#define PIXEL_FORMAT SDL_PIXELFORMAT_ARGB4444
 typedef uint16_t pixel_t;
 
 typedef struct palette {
     pixel_t colors[4];
 } palette_t;
-
-struct window {
-    SDL_Window*   window;
-    SDL_Renderer* renderer;
-    SDL_Texture*  texture;
-    SDL_Surface*  surface;
-};
 
 typedef struct gfx {
     // Number of cycles in the current state.
@@ -36,7 +30,7 @@ typedef struct gfx {
     int          window_y;
     
     // Current state.
-    gfx_state_t  state;
+    gfx_state_t state;
     
     window_t window;
 

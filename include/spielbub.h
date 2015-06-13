@@ -82,9 +82,10 @@ bool context_get_traceback(const context_t* ctx, uint16_t* value);
 void joypad_press(context_t* ctx, joypad_key_t key);
 void joypad_release(context_t* ctx, joypad_key_t key);
 
-window_t* graphics_create_window(const char name[], int w, int h);
-void graphics_free_window(window_t* window);
-void graphics_draw_window(window_t* window);
+window_t* window_create(const char name[], int w, int h);
+void window_free(window_t* window);
+void window_draw(window_t* window);
+
 void graphics_toggle_debug(context_t* ctx, graphics_layer_t layer);
 bool graphics_get_debug(const context_t* ctx, graphics_layer_t layer);
 void graphics_draw_tile(const context_t* ctx, window_t* window,

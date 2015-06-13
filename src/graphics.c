@@ -29,109 +29,7 @@ typedef struct map {
 
 /* BIG MESS, you have been warned */
 
-static void draw_line();
-
-/*
- * Sets a new LCD state and requests an
- * interrupt if appropriate.
- */
-static void set_mode(context_t *ctx, gfx_state_t state)
-{
-    ctx->gfx.state = state;
-
-    ctx->mem.io.STAT &= ~0x3;  // Clear bits 01
-    ctx->mem.io.STAT |= state; // Set new stae
-
-    if (state < 3 && BIT_ISSET(ctx->mem.io.STAT, state + 3))
-        cpu_irq(ctx, I_LCDC);
-}
-
-static SDL_Surface* surface_create(int w, int h)
-{
-    return SDL_CreateRGBSurface(
-        0, w, h, 16,
-        0x0F00, 0x00F0, 0x000F, 0xF000
-    );
-}
-
-static void window_destroy(window_t* window);
-
-static bool window_init(window_t* window, const char name[], int w, int h)
-{
-    window->window = SDL_CreateWindow(
-        name,
-        SDL_WINDOWPOS_UNDEFINED,
-        SDL_WINDOWPOS_UNDEFINED,
-        w, h,
-        0
-    );
-
-    if (window->window == NULL) {
-        goto error;
-    }
-
-    window->renderer = SDL_CreateRenderer(window->window, -1, 0);
-
-    if (window->renderer == NULL) {
-        goto error;
-    }
-
-    window->texture = SDL_CreateTexture(
-        window->renderer,
-        PIXEL_FORMAT,
-        SDL_TEXTUREACCESS_STREAMING,
-        w, h
-    );
-
-    if (window->texture == NULL) {
-        goto error;
-    }
-
-    window->surface = surface_create(w, h);
-
-    if (window->surface == NULL) {
-        goto error;
-    }
-
-    return true;
-
-    error: {
-        window_destroy(window);
-        return false;
-    }
-}
-
-void window_destroy(window_t* window)
-{
-    if (window->renderer != NULL) {
-        SDL_DestroyRenderer(window->renderer);
-        window->renderer = NULL;
-    }
-
-    if (window->window != NULL) {
-        SDL_DestroyWindow(window->window);
-        window->window = NULL;
-    }
-
-    if (window->texture != NULL) {
-        SDL_DestroyTexture(window->texture);
-        window->texture = NULL;
-    }
-
-    if (window->surface != NULL) {
-        SDL_FreeSurface(window->surface);
-        window->surface = NULL;
-    }
-}
-
-void graphics_draw_window(window_t* window)
-{
-    SDL_UpdateTexture(window->texture, NULL,
-        window->surface->pixels, window->surface->pitch);
-    SDL_RenderClear(window->renderer);
-    SDL_RenderCopy(window->renderer, window->texture, NULL, NULL);
-    SDL_RenderPresent(window->renderer);
-}
+void draw_line();
 
 bool graphics_init(gfx_t* gfx)
 {
@@ -146,14 +44,19 @@ bool graphics_init(gfx_t* gfx)
     }
 
 #define INIT_SURFACE(x) do { \
-        x = surface_create(SCREEN_WIDTH, SCREEN_HEIGHT); \
+        x = SDL_CreateRGBSurface( \
+            0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, \
+            0x0F00, 0x00F0, 0x000F, 0xF000 \
+        ); \
         if (x == NULL) { \
             goto error; \
         } \
     } while(0)
+
     INIT_SURFACE(gfx->background);
     INIT_SURFACE(gfx->sprites_bg);
     INIT_SURFACE(gfx->sprites_fg);
+
 #undef INIT_SURFACE
 
     gfx->palette.colors[0] =
@@ -186,7 +89,7 @@ bool graphics_init(gfx_t* gfx)
     gfx->state = OAM;
 
     SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
-    graphics_draw_window(&gfx->window);
+    window_draw(&gfx->window);
 
     return true;
 
@@ -220,29 +123,6 @@ void graphics_destroy(gfx_t *gfx)
     }
 }
 
-window_t* graphics_create_window(const char name[], int w, int h)
-{
-    window_t* window = malloc(sizeof *window);
-
-    if (window == NULL) {
-        return NULL;
-    }
-
-    if (!window_init(window, name, w, h)) {
-        return NULL;
-    }
-
-    return window;
-}
-
-void graphics_free_window(window_t* window)
-{
-    if (window != NULL) {
-        window_destroy(window);
-        free(window);
-    }
-} 
-
 bool graphics_lock(context_t *ctx)
 {
     if (SDL_LockSurface(ctx->gfx.window.surface) < 0)
@@ -259,17 +139,22 @@ void graphics_unlock(context_t *ctx)
     SDL_UnlockSurface(ctx->gfx.window.surface);
 }
 
+void hblank(context_t*);
+void vblank(context_t*);
+void oam(context_t*);
+void transf(context_t*);
+void hblank_wait(context_t*);
+void vblank_wait(context_t*);
+void oam_wait(context_t*);
+
 /*
  * Updates the screen.
  */
 void graphics_update(context_t *ctx, int cycles)
 {
-    // This works a bit like a very crude state machine.
     // context->state starts in OAM. As soon as a certain
     // amount of cycles is reached, state transitions
     // to TRANSF, etc.
-
-    uint8_t* r_stat = &ctx->mem.io.STAT;
 
     if (!BIT_ISSET(ctx->mem.io.LCDC, R_LCDC_ENABLED))
     {
@@ -281,99 +166,20 @@ void graphics_update(context_t *ctx, int cycles)
         return;
     }
 
-    gfx_t *gfx = &ctx->gfx;
+    ctx->gfx.cycles += cycles;
 
-    gfx->cycles += cycles;
-    switch (gfx->state)
+    switch (ctx->gfx.state)
     {
-        case OAM:
-            gfx->state = OAM_WAIT;
-            if (ctx->mem.io.LY == ctx->mem.io.LYC)
-            {
-                // LY coincidence interrupt
-                // The LCD just finished displaying a
-                // line R_LY, which matches R_LYC.
-                BIT_SET(*r_stat, R_STAT_LY_COINCIDENCE);
-                if (BIT_ISSET(*r_stat, R_STAT_LYC_ENABLE)) {
-                    cpu_irq(ctx, I_LCDC);
-                }
-            } else {
-                BIT_RESET(*r_stat, R_STAT_LY_COINCIDENCE);
-            }
+        case OAM:         oam(ctx);
+        case OAM_WAIT:    oam_wait(ctx);    break;
 
-        case OAM_WAIT:
-            if (gfx->cycles >= 80)
-            {
-                gfx->cycles -= 80;
-                set_mode(ctx, TRANSF);
-            }
-            break;
+        case TRANSF:      transf(ctx);      break;
 
-        case TRANSF:
-            if (gfx->cycles >= 172)
-            {
-                gfx->cycles -= 172;
-                set_mode(ctx, HBLANK);
-            }
-            break;
+        case HBLANK:      hblank(ctx);
+        case HBLANK_WAIT: hblank_wait(ctx); break;
 
-        case HBLANK:
-            draw_line(ctx);
-            ctx->mem.io.LY++;
-            gfx->state = HBLANK_WAIT;
-
-        case HBLANK_WAIT:
-            if (gfx->cycles >= 204)
-            {
-                gfx->cycles -= 204;
-                if (ctx->mem.io.LY == 144)
-                {
-                    set_mode(ctx, VBLANK);
-                }
-                else
-                {
-                    set_mode(ctx, OAM);
-                }
-            }
-            break;
-
-        case VBLANK:
-        {
-            SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
-            SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->window.surface, NULL);
-            SDL_BlitSurface(gfx->background, NULL, gfx->window.surface, NULL);
-            SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->window.surface, NULL);
-
-            graphics_draw_window(&gfx->window);
-            
-            // Make overlays transparent again
-            SDL_FillRect(gfx->sprites_bg, NULL, gfx->palette.colors[0]);
-            SDL_FillRect(gfx->background, NULL, gfx->palette.colors[0]);
-            SDL_FillRect(gfx->sprites_fg, NULL, gfx->palette.colors[0]);
-            
-            cpu_irq(ctx, I_VBLANK);
-            
-            gfx->state = VBLANK_WAIT;
-            gfx->window_y = 0;
-        }
-
-        case VBLANK_WAIT:
-            if (gfx->cycles >= 456)
-            {
-                gfx->cycles -= 456;
-                
-                if (ctx->mem.io.LY++ == 153)
-                {
-                    ctx->mem.io.LY = 0;
-                    set_mode(ctx, OAM);
-
-                    if (ctx->stopflags & STOP_FRAME) {
-                        ctx->state = FRAME_STEPPED;
-                        ctx->stopflags &= ~STOP_FRAME;
-                    }
-                }
-            }
-            break;
+        case VBLANK:      vblank(ctx);
+        case VBLANK_WAIT: vblank_wait(ctx); break;
     }
 }
 
@@ -469,10 +275,11 @@ sprite_decode(sprite_t *sprite, const memory_oam_t* oam, const palette_t* high,
 
     sprite->tile_id = (sprite->tile_y < TILE_HEIGHT) ?
         (oam->data[2] & 0xFE) : (oam->data[2] | 0x01);
-    sprite->tile_y %= TILE_HEIGHT;
 
     sprite->visible = sprite->tile_x < SPRITE_WIDTH
         && sprite->tile_y < SPRITE_HEIGHT;
+
+    sprite->tile_y %= TILE_HEIGHT;
 
     sprite->in_background = BIT_ISSET(oam->data[2], 7);
     sprite->flip_y = BIT_ISSET(oam->data[2], 6);
@@ -566,7 +373,7 @@ draw_tiles(dest_t* restrict dst, const map_t* restrict map,
     }
 }
 
-static void draw_line(context_t *ctx) {
+void draw_line(context_t *ctx) {
     gfx_t* gfx = &ctx->gfx;
     uint8_t lcdc = ctx->mem.io.LCDC;
     uint8_t screen_y = ctx->mem.io.LY;
@@ -687,7 +494,7 @@ static void draw_line(context_t *ctx) {
             dest_init(
                 &dst,
                 sprite->in_background ? gfx->sprites_bg : gfx->sprites_fg,
-                sprite->x, sprite->y + (screen_y - sprite->y), TILE_WIDTH
+                sprite->x, screen_y, TILE_WIDTH
             );
 
             draw_tile(
