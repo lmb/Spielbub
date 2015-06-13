@@ -6,7 +6,6 @@
 #include "spielbub.h"
 
 #if defined(DEBUG)
-#include "probability_list.h"
 #include "buffers.h"
 #endif
 

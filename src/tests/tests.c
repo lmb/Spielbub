@@ -13,7 +13,7 @@
 
 #include "context.h"
 #include "cpu_ops.h"
-#include "probability_list.h"
+#include "set.h"
 
 // Fixtures
 context_t ctx;
@@ -593,13 +593,13 @@ START_TEST (test_mem_locations)
 END_TEST
 
 /* -------------------------------------------------------------------------- */
-// Probability list
+// Set
 
-START_TEST (test_prob_list)
+START_TEST (test_set)
 {
-    prob_list_t pl;
+    set_t set;
     
-    pl_init(&pl);
+    set_init(&set);
     
     uint16_t const values[] = {
         0x0392, 0xAF78, 0x8923, 0xFEAA, 0x2939, 0xFFFF, 0
@@ -608,25 +608,25 @@ START_TEST (test_prob_list)
     int i = 0;
     
     do {
-        fail_unless(pl_add(&pl, values[i]), "Could not add 0x%X to pl, value number %d", values[i], i+1);
+        fail_unless(set_add(&set, values[i]), "Could not add 0x%X to set, value number %d", values[i], i+1);
         i++;
     } while (values[i] != 0);
     
-    for (int j = 0; j < PL_MAX_VALUES - i; j++) {
-        fail_unless(pl_add(&pl, j), "Could not add 0x%X to pl, value number %d", j, j+i+1);
+    for (int j = 0; j < SET_MAX_VALUES - i; j++) {
+        fail_unless(set_add(&set, j), "Could not add 0x%X to set, value number %d", j, j+i+1);
     }
     
-    fail_unless(pl.length == PL_MAX_VALUES, "Pl is not at max capacity");
+    fail_unless(set.length == SET_MAX_VALUES, "Pl is not at max capacity");
     
-    fail_unless(pl_add(&pl, 0x0) == false, "Added entry after pl was supposedly full");
+    fail_unless(set_add(&set, 0x0) == false, "Added entry after set was supposedly full");
     
     i = 0;
     do {
-        fail_unless(pl_check(&pl, values[i]), "Pl failed to recognize added value 0x%X", values[i]);
+        fail_unless(set_contains(&set, values[i]), "Pl failed to recognize added value 0x%X", values[i]);
         i++;
     } while (values[i] != 0);
     
-    fail_unless(pl_check(&pl, 0xDEAD) == false, "Pl recognized a value that was not added");
+    fail_unless(set_contains(&set, 0xDEAD) == false, "Pl recognized a value that was not added");
 }
 END_TEST
 
@@ -668,9 +668,9 @@ Suite * spielbub_suite(void)
     tcase_add_test(tc_memory, test_mem_locations);
     suite_add_tcase(s, tc_memory);
     
-    // Probability list
-    TCase *tc_pl = tcase_create("Probability list");
-    tcase_add_test(tc_pl, test_prob_list);
+    // Set
+    TCase *tc_pl = tcase_create("Set");
+    tcase_add_test(tc_pl, test_set);
     suite_add_tcase(s, tc_pl);
     
     return s;

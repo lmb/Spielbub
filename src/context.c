@@ -78,7 +78,7 @@ void context_destroy(context_t *ctx)
 #if defined(DEBUG)
         cb_destroy(ctx->logs);
         cb_destroy(ctx->traceback);
-        pl_init(&ctx->breakpoints);
+        set_init(&ctx->breakpoints);
 #endif
 
         graphics_destroy(&ctx->gfx);
@@ -133,7 +133,7 @@ bool context_run(context_t* ctx)
             {
                 ctx->state = SINGLE_STEPPED;
                 ctx->stopflags &= ~STOP_STEP;
-            } else if (pl_check(&ctx->breakpoints, ctx->cpu.PC)) {
+            } else if (set_contains(&ctx->breakpoints, ctx->cpu.PC)) {
                 ctx->state = BREAKPOINT;
             }
 #endif
@@ -222,7 +222,7 @@ execution_state_t context_get_exec(context_t* ctx)
 
 bool context_add_breakpoint(context_t* ctx, uint16_t addr)
 {
-    return pl_add(&ctx->breakpoints, addr);
+    return set_add(&ctx->breakpoints, addr);
 }
 
 void context_get_registers(const context_t* ctx, registers_t* regs)

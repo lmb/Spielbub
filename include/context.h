@@ -13,6 +13,10 @@
 
 #include "buffers.h"
 
+#if defined(DEBUG)
+#   include "set.h"
+#endif
+
 #define CYCLES_PER_FRAME (70886)
 #define TICKS_PER_FRAME (17)
 
@@ -48,7 +52,7 @@ struct context {
 #if defined(DEBUG)
     circular_buffer* logs;
     circular_buffer* traceback;
-    prob_list_t breakpoints;
+    set_t breakpoints;
     int stopflags;
 #endif
 
