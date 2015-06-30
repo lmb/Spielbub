@@ -1,3 +1,7 @@
+#include <assert.h>
+
+#include <SDL2/SDL.h>
+
 #include "context.h"
 #include "cpu.h"
 #include "ioregs.h"
@@ -21,7 +25,8 @@ static inline void set_mode(context_t *ctx, gfx_state_t state)
     }
 }
 
-void oam(context_t *ctx) {
+void oam(context_t *ctx)
+{
     ctx->gfx.state = OAM_WAIT;
 
     if (ctx->mem.io.LY == ctx->mem.io.LYC)
@@ -39,16 +44,19 @@ void oam(context_t *ctx) {
     }
 }
 
-void hblank(context_t *ctx) {
+void hblank(context_t *ctx)
+{
     draw_line(ctx);
     ctx->mem.io.LY++;
     ctx->gfx.state = HBLANK_WAIT;
 }
 
-void vblank(context_t *ctx) {
+void vblank(context_t *ctx)
+{
     gfx_t *gfx = &ctx->gfx;
 
-    SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
+    window_clear(&gfx->window);
+
     SDL_BlitSurface(gfx->sprites_bg, NULL, gfx->window.surface, NULL);
     SDL_BlitSurface(gfx->background, NULL, gfx->window.surface, NULL);
     SDL_BlitSurface(gfx->sprites_fg, NULL, gfx->window.surface, NULL);
@@ -56,9 +64,9 @@ void vblank(context_t *ctx) {
     window_draw(&gfx->window);
 
     // Make overlays transparent again
-    SDL_FillRect(gfx->sprites_bg, NULL, gfx->palette.colors[0]);
-    SDL_FillRect(gfx->background, NULL, gfx->palette.colors[0]);
-    SDL_FillRect(gfx->sprites_fg, NULL, gfx->palette.colors[0]);
+    SDL_FillRect(gfx->sprites_bg, NULL, 0x00);
+    SDL_FillRect(gfx->background, NULL, 0x00);
+    SDL_FillRect(gfx->sprites_fg, NULL, 0x00);
 
     cpu_irq(ctx, I_VBLANK);
 
@@ -66,7 +74,8 @@ void vblank(context_t *ctx) {
     gfx->window_y = 0;
 }
 
-void oam_wait(context_t *ctx) {
+void oam_wait(context_t *ctx)
+{
     if (ctx->gfx.cycles >= 80)
     {
         ctx->gfx.cycles -= 80;
@@ -74,7 +83,8 @@ void oam_wait(context_t *ctx) {
     }
 }
 
-void transf(context_t *ctx) {
+void transf(context_t *ctx)
+{
     if (ctx->gfx.cycles >= 172)
     {
         ctx->gfx.cycles -= 172;
@@ -82,7 +92,8 @@ void transf(context_t *ctx) {
     }
 }
 
-void hblank_wait(context_t *ctx) {
+void hblank_wait(context_t *ctx)
+{
     if (ctx->gfx.cycles >= 204)
     {
         ctx->gfx.cycles -= 204;
@@ -97,7 +108,8 @@ void hblank_wait(context_t *ctx) {
     }
 }
 
-void vblank_wait(context_t *ctx) {
+void vblank_wait(context_t *ctx)
+{
     if (ctx->gfx.cycles >= 456)
     {
         ctx->gfx.cycles -= 456;

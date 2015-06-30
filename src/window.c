@@ -1,6 +1,8 @@
+#include <assert.h>
+
 #include "window.h"
 
-#define PIXEL_FORMAT SDL_PIXELFORMAT_ARGB4444
+#define PIXEL_FORMAT SDL_PIXELFORMAT_ARGB8888
 
 bool window_init(window_t* window, const char name[], int w, int h)
 {
@@ -22,6 +24,9 @@ bool window_init(window_t* window, const char name[], int w, int h)
         goto error;
     }
 
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    SDL_RenderSetLogicalSize(window->renderer, w, h);
+
     window->texture = SDL_CreateTexture(
         window->renderer,
         PIXEL_FORMAT,
@@ -33,14 +38,21 @@ bool window_init(window_t* window, const char name[], int w, int h)
         goto error;
     }
 
+    uint32_t r, g, b, a;
+    int bpp;
+
+    SDL_PixelFormatEnumToMasks(PIXEL_FORMAT, &bpp, &r, &g, &b, &a);
+
     window->surface = SDL_CreateRGBSurface(
-        0, SCREEN_WIDTH, SCREEN_HEIGHT, 16,
-        0x0F00, 0x00F0, 0x000F, 0xF000
+        0, SCREEN_WIDTH, SCREEN_HEIGHT, bpp,
+        r, g, b, a
     );
 
     if (window->surface == NULL) {
         goto error;
     }
+
+    window->bg_color = SDL_MapRGB(window->surface->format, 0xff, 0xff, 0xff);
 
     return true;
 
@@ -96,11 +108,24 @@ void window_free(window_t* window)
     }
 }
 
+void window_clear(window_t *window) {
+    SDL_FillRect(window->surface, NULL, window->bg_color);
+}
+
 void window_draw(window_t* window)
 {
-    SDL_UpdateTexture(window->texture, NULL,
-        window->surface->pixels, window->surface->pitch);
-    SDL_RenderClear(window->renderer);
+    void *pixels;
+    int pitch;
+
+    assert(SDL_LockTexture(window->texture, NULL, &pixels, &pitch) == 0);
+    assert(SDL_LockSurface(window->surface) == 0);
+
+    memcpy(pixels, window->surface->pixels, window->surface->pitch *
+        window->surface->h);
+
+    SDL_UnlockSurface(window->surface);
+    SDL_UnlockTexture(window->texture);
+
     SDL_RenderCopy(window->renderer, window->texture, NULL, NULL);
     SDL_RenderPresent(window->renderer);
 }

@@ -9,7 +9,7 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 typedef struct dest {
-    pixel_t* data;
+    uint8_t* data;
     size_t remaining;
 } dest_t;
 
@@ -27,9 +27,39 @@ typedef struct map {
     size_t tile_x, tile_y;
 } map_t;
 
+static const SDL_Color sdl_palette[] = {
+    {0xFF, 0x00, 0x00, 0x00}, // Transparent
+    {0xCC, 0xCC, 0xCC, 0xFF}, // Light grey
+    {0x77, 0x77, 0x77, 0xFF}, // Dark grey
+    {0x00, 0x00, 0x00, 0xFF}, // Black
+};
+
 /* BIG MESS, you have been warned */
 
 void draw_line();
+
+SDL_Surface* create_surface() {
+    SDL_Surface *surface = SDL_CreateRGBSurface(
+        0, SCREEN_WIDTH, SCREEN_HEIGHT, 8,
+        0, 0, 0, 0
+    );
+
+    if (surface == NULL) {
+        return NULL;
+    }
+
+    // assert(SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND) == 0);
+
+    assert(surface->format->palette != NULL);
+    assert(SDL_SetPaletteColors(surface->format->palette, sdl_palette, 0,
+        NUM(sdl_palette)) == 0);
+
+    assert(SDL_SetColorKey(surface, SDL_TRUE, 0) == 0);
+
+    SDL_FillRect(surface, NULL, 0);
+
+    return surface;
+}
 
 bool graphics_init(gfx_t* gfx)
 {
@@ -44,10 +74,7 @@ bool graphics_init(gfx_t* gfx)
     }
 
 #define INIT_SURFACE(x) do { \
-        x = SDL_CreateRGBSurface( \
-            0, SCREEN_WIDTH, SCREEN_HEIGHT, 16, \
-            0x0F00, 0x00F0, 0x000F, 0xF000 \
-        ); \
+        x = create_surface(); \
         if (x == NULL) { \
             goto error; \
         } \
@@ -59,36 +86,12 @@ bool graphics_init(gfx_t* gfx)
 
 #undef INIT_SURFACE
 
-    gfx->palette.colors[0] =
-        SDL_MapRGBA(gfx->background->format, 0x00, 0x00, 0x00, 0x00);
-    gfx->palette.colors[1] =
-        SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
-    gfx->palette.colors[2] =
-        SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
-    gfx->palette.colors[3] =
-        SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
-
-    for (size_t i = 0; i < NUM(gfx->debug_palettes); i++) {
-        gfx->debug_palettes[i].colors[1] =
-            SDL_MapRGB(gfx->background->format, 0xCC, 0xCC, 0xCC);
-        gfx->debug_palettes[i].colors[2] =
-            SDL_MapRGB(gfx->background->format, 0x77, 0x77, 0x77);
-        gfx->debug_palettes[i].colors[3] =
-            SDL_MapRGB(gfx->background->format, 0x00, 0x00, 0x00);
-    }
-
-    gfx->debug_palettes[0].colors[0] =
-        SDL_MapRGBA(gfx->background->format, 0xFF, 0x14, 0x93, 0x88);
-    gfx->debug_palettes[1].colors[0] =
-        SDL_MapRGBA(gfx->background->format, 0x32, 0xCD, 0x32, 0x88);
-    gfx->debug_palettes[2].colors[0] =
-        SDL_MapRGBA(gfx->background->format, 0x00, 0xF9, 0xF9, 0x88);
-
-    gfx->screen_white =
-        SDL_MapRGBA(gfx->background->format, 0xFF, 0xFF, 0xFF, 0xFF);
+    gfx->layers[0] = gfx->background;
+    gfx->layers[1] = gfx->sprites_bg;
+    gfx->layers[2] = gfx->sprites_fg;
     gfx->state = OAM;
 
-    SDL_FillRect(gfx->window.surface, NULL, gfx->screen_white);
+    window_clear(&gfx->window);
     window_draw(&gfx->window);
 
     return true;
@@ -189,7 +192,7 @@ dest_init(dest_t* dst, SDL_Surface* surface, size_t x, size_t y, size_t num)
     size_t max_pixels = ((size_t)surface->w) - x;
     assert(y < (size_t)surface->h);
 
-    dst->data = ((pixel_t*)surface->pixels) + (y * surface->w) + x;
+    dst->data = ((uint8_t*)surface->pixels) + (y * surface->w) + x;
     dst->remaining = MIN(num, max_pixels);
 }
 
@@ -242,9 +245,8 @@ map_next(map_t* map, source_t* src)
     map->col = (map->col + 1) % MAP_COLUMNS;
 }
 
-static void
-palette_decode(palette_t* restrict palette,
-    const palette_t* restrict base_palette, uint8_t raw_palette)
+static palette_t
+palette_decode(uint8_t raw_palette)
 {
     /* Palettes are packed into an uint8_t and map color indexes to actual
      * colors. This is the layout:
@@ -253,19 +255,24 @@ palette_decode(palette_t* restrict palette,
      *
      * gfx->palette holds the pre-mapped RGB pixel values for the actual colors.
      */
-#define DECODE(col) \
-    base_palette->colors[((raw_palette & (0x3 << (col*2))) >> (col*2))]
+    palette_t palette;
 
-    palette->colors[0] = DECODE(0);
-    palette->colors[1] = DECODE(1);
-    palette->colors[2] = DECODE(2);
-    palette->colors[3] = DECODE(3);
+#define DECODE(dest, n) do { \
+        dest.colors[n] = ((raw_palette & (0x3 << (n*2))) >> (n*2)); \
+    } while(0)
+
+    DECODE(palette, 0);
+    DECODE(palette, 1);
+    DECODE(palette, 2);
+    DECODE(palette, 3);
 #undef DECODE
+
+    return palette;
 }
 
 static void
-sprite_decode(sprite_t *sprite, const memory_oam_t* oam, const palette_t* high,
-    const palette_t* low)
+sprite_decode(sprite_t *sprite, const memory_oam_t* oam, palette_t high,
+    palette_t low)
 {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
     sprite->y      = MAX(0, oam->data[0] - SPRITE_HEIGHT);
@@ -289,8 +296,7 @@ sprite_decode(sprite_t *sprite, const memory_oam_t* oam, const palette_t* high,
 }
 
 static void
-draw_tile(dest_t* restrict dst, const source_t* restrict src,
-    const palette_t* restrict palette)
+draw_tile(dest_t* restrict dst, const source_t* restrict src, palette_t palette)
 {
     /* Tiles are 8x8 pixels, with every pixel taking up two bits (for four
      * colors). The pixel bits are not continuous in memory, but split over
@@ -353,13 +359,12 @@ draw_tile(dest_t* restrict dst, const source_t* restrict src,
     // Copy pixel for pixel
     for (size_t i = src->x; i < num; i++, dst->data++, dst->remaining--) {
         const int shift = (7 - i) * 2;
-        *dst->data = palette->colors[(line & (0x3 << shift)) >> shift];
+        *dst->data = palette.colors[(line & (0x3 << shift)) >> shift];
     }
 }
 
 static void
-draw_tiles(dest_t* restrict dst, const map_t* restrict map,
-    const palette_t* restrict palette)
+draw_tiles(dest_t* restrict dst, const map_t* restrict map, palette_t palette)
 {
     map_t my_map = *map;
 
@@ -381,8 +386,7 @@ void draw_line(context_t *ctx) {
     map_t src;
     dest_t dest;
     palette_t palette;
-    const palette_t* base_palette;
-    
+
     if (!graphics_lock(ctx))
     {
         return;
@@ -391,10 +395,7 @@ void draw_line(context_t *ctx) {
     // Background
     if (BIT_ISSET(lcdc, R_LCDC_BG_ENABLED))
     {
-        base_palette = (gfx->debug_flags & LAYER_BACKGROUND) ?
-            &gfx->debug_palettes[0] : &gfx->palette;
-
-        palette_decode(&palette, base_palette, ctx->mem.io.BGP);
+        palette = palette_decode(ctx->mem.io.BGP);
 
         map_init(
             &src, &ctx->mem,
@@ -409,9 +410,9 @@ void draw_line(context_t *ctx) {
             0, screen_y, SCREEN_WIDTH
         );
         
-        draw_tiles(&dest, &src, &palette);
+        draw_tiles(&dest, &src, palette);
     }
-    
+
     // Window
     uint8_t window_y = ctx->mem.io.WY;
     // TODO: What happens on underflow?
@@ -420,10 +421,7 @@ void draw_line(context_t *ctx) {
     if (BIT_ISSET(lcdc, R_LCDC_WINDOW_ENABLED) && screen_y >= window_y &&
         window_x < SCREEN_WIDTH)
     {
-        base_palette = (gfx->debug_flags & LAYER_WINDOW) ?
-            &gfx->debug_palettes[1] : &gfx->palette;
-
-        palette_decode(&palette, base_palette, ctx->mem.io.BGP);
+        palette = palette_decode(ctx->mem.io.BGP);
 
         map_init(
             &src, &ctx->mem,
@@ -438,7 +436,7 @@ void draw_line(context_t *ctx) {
             window_x, screen_y, SCREEN_WIDTH - window_x
         );
 
-        draw_tiles(&dest, &src, &palette);
+        draw_tiles(&dest, &src, palette);
         gfx->window_y += 1;
     }
     
@@ -448,18 +446,15 @@ void draw_line(context_t *ctx) {
         size_t sprite_height = BIT_ISSET(lcdc, R_LCDC_SPRITES_LARGE) ? 16 : 8;
         palette_t spp_high, spp_low;
 
-        base_palette = (gfx->debug_flags & LAYER_SPRITES) ?
-            &gfx->debug_palettes[2] : &gfx->palette;
+        spp_high = palette_decode(ctx->mem.io.SPP_HIGH);
+        spp_low = palette_decode(ctx->mem.io.SPP_LOW);
 
-        palette_decode(&spp_high, base_palette, ctx->mem.io.SPP_HIGH);
-        palette_decode(&spp_low, base_palette, ctx->mem.io.SPP_LOW);
-        
         sprite_table_t sprites = { .length = 0 };
         
         for (size_t i = 0; i < MAX_SPRITES; i++)
         {
             sprite_t sprite;
-            sprite_decode(&sprite, &ctx->mem.gfx.oam[i], &spp_high, &spp_low);
+            sprite_decode(&sprite, &ctx->mem.gfx.oam[i], spp_high, spp_low);
 
             if (!sprite.visible) {
                 continue;
@@ -536,23 +531,55 @@ void graphics_sprite_table_add(sprite_table_t *table, const sprite_t* sprite)
 void graphics_draw_tile(const context_t* ctx, window_t* window,
     uint16_t tile_id, size_t x, size_t y)
 {
+    palette_t palette = {
+        {0, 1, 2, 3}
+    };
+
     for (size_t tile_y = 0; tile_y < TILE_HEIGHT; tile_y++) {
         source_t src;
         dest_t dst;
 
         dest_init(&dst, window->surface, x, y + tile_y, window->surface->w - x);
         source_init(&src, &ctx->mem.gfx.tiles.data[tile_id], 0, tile_y);
-        draw_tile(&dst, &src, &ctx->gfx.debug_palettes[0]);
+        draw_tile(&dst, &src, palette);
     }
 }
 
 void graphics_toggle_debug(context_t* ctx, graphics_layer_t layer)
 {
+    static const SDL_Color debug[3][4] = {
+        {
+            {0xFF, 0x00, 0x00, 0x00}, // Transparent
+            {0xD8, 0x8A, 0xDC, 0xFF}, // Light grey
+            {0x9E, 0x51, 0xA3, 0xFF}, // Dark grey
+            {0x4D, 0x00, 0x52, 0xFF}, // Black
+        },
+        {
+            {0xFF, 0x00, 0x00, 0x00}, // Transparent
+            {0x8A, 0xDC, 0x90, 0xFF}, // Light grey
+            {0x51, 0xA3, 0x57, 0xFF}, // Dark grey
+            {0x00, 0x52, 0x06, 0xFF}, // Black
+        },
+        {
+            {0xFF, 0x00, 0x00, 0x00}, // Transparent
+            {0x8A, 0xDC, 0xD8, 0xFF}, // Light grey
+            {0x51, 0xA3, 0x9E, 0xFF}, // Dark grey
+            {0x00, 0x52, 0x4D, 0xFF}, // Black
+        }
+    };
+
+    const SDL_Color *palette;
+
     if (ctx->gfx.debug_flags & layer) {
         ctx->gfx.debug_flags &= ~layer;
+        palette = sdl_palette;
     } else {
         ctx->gfx.debug_flags |= layer;
+        palette = debug[layer - 1];
     }
+
+    assert(SDL_SetPaletteColors(ctx->gfx.layers[layer - 1]->format->palette,
+        palette, 0, 4) == 0);
 }
 
 bool graphics_get_debug(const context_t* ctx, graphics_layer_t layer)

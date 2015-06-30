@@ -16,8 +16,6 @@
 void mbc1_init();
 void mbc1(memory_t*, int addr, uint8_t value);
 
-static void mem_write_ioregs(memory_t*, const uint8_t* data);
-
 // List of supported memory controllers.
 static const struct {
     void (*init)(memory_t*);
@@ -27,18 +25,16 @@ static const struct {
     {mbc1_init, &mbc1}  // Memory Bank Controller 1
 };
 
-// Initialization table for the IO registers,
-// located at 0xFF00+ in memory.
+// Initialization table for the IO registers, located at 0xFF00+ in memory.
 static const uint8_t ioregs_init[0x4C] = {
-    //  x0    x1    x2    x3    x4    x5    x6    x7    x8    x9    xA    xB    xC    xD    xE    xF
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, // 0x
-    0x80, 0xBF, 0xF3,    0, 0xBF,    0, 0x3F,    0,    0, 0xBF, 0x7F, 0xFF, 0x9F,    0, 0xBF,    0, // 1x
-    0xFF,    0,    0, 0xBF, 0x77, 0xF3, 0xF1,    0,    0,    0,    0,    0,    0,    0,    0,    0, // 2x
-    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0,    0, // 3x
-    0x91,    0,    0,    0,    0,    0,    0, 0xFC, 0xFF, 0xFF,    0,    0                          // 4x
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x80, 0xBF, 0xF3, 0x00, 0xBF, 0x00, 0x3F, 0x00, 0x00, 0xBF, 0x7F, 0xFF, 0x9F, 0x00, 0xBF, 0x00,
+    0xFF, 0x00, 0x00, 0xBF, 0x77, 0xF3, 0xF1, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x91, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0x00, 0x00
 };
 
-static bool mem_map(memory_t* mem, size_t bank, void* src)
+static bool change_mapping(memory_t* mem, size_t bank, void* src)
 {
     const uint16_t addr = bank * 0x2000 + (bank == 4 ? 0x2000 : 0);
 
@@ -60,13 +56,12 @@ static bool mem_map(memory_t* mem, size_t bank, void* src)
     return true;
 }
 
-static bool mem_map_many(memory_t *mem, size_t bank, const size_t num,
-    void* src)
+static bool change_mappings(memory_t *mem, size_t bank, size_t num, void* src)
 {
     size_t i, j;
 
     for (i = bank, j = 0; i < bank + num; i++, j++) {
-        if (!mem_map(mem, i, (uint8_t*)src + (j * 0x2000))) {
+        if (!change_mapping(mem, i, (uint8_t*)src + (j * 0x2000))) {
             return false;
         }
     }
@@ -76,7 +71,6 @@ static bool mem_map_many(memory_t *mem, size_t bank, const size_t num,
 
 void mem_init(memory_t *mem)
 {
-    // TODO: Does this even set all items to NULL?
     memset(mem->map, 0, sizeof(mem->map));
     memset(mem->banks, 0, sizeof(mem->banks));
 
@@ -86,7 +80,8 @@ void mem_init(memory_t *mem)
     // mem->map[7] = mem->internal_ram + 0x2000;
     
     // Initialize IO registers.
-    mem_write_ioregs(mem, ioregs_init);
+    memcpy(&mem->map[7] + 0x1F00, ioregs_init, 0x4C);
+
     // Disable all interrupts.
     mem->map[R_IE] = 0;
 }
@@ -96,7 +91,7 @@ void mem_init_debug(memory_t *mem)
     mem_init(mem);
     mem->rom = malloc(5 * 0x2000);
 
-    mem_map_many(mem, 0, 4, mem->rom);
+    change_mappings(mem, 0, 4, mem->rom);
 }
 
 void mem_destroy(memory_t *mem)
@@ -108,7 +103,6 @@ void mem_destroy(memory_t *mem)
 
 bool mem_load_rom(memory_t *mem, const char *filename)
 {
-    // TODO: Correct size?
     memset(&(mem->meta), 0, sizeof(mem->meta));
     
     if (mem->rom != NULL) {
@@ -132,7 +126,7 @@ bool mem_load_rom(memory_t *mem, const char *filename)
     
     // TODO: Check minimum number of banks?
 
-    mem_map_many(mem, 0, 4, mem->rom);
+    change_mappings(mem, 0, 4, mem->rom);
 
     return true;
 }
@@ -144,8 +138,8 @@ uint16_t mem_read16(const memory_t *mem, uint16_t addr)
 
 void mem_write16(memory_t *mem, uint16_t addr, uint16_t value)
 {
-    mem->map[addr]   = value & 0xff;
-    mem->map[addr+1] = value >> 8;
+    mem_write(mem, addr, value & 0xff);
+    mem_write(mem, addr+1, value >> 8);
 }
 
 void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
@@ -189,21 +183,12 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
     }
 }
 
-/*
- * Initialize IO registers, read 0x4c bytes from data.
- */
-void mem_write_ioregs(memory_t *mem, const uint8_t* data)
-{
-    assert(mem->map != NULL);
-    memcpy(&mem->map[7] + 0x1F00, data, 0x4C);
-}
-
 // __ Memory bank controllers __________________
 
 void mbc1_init(memory_t *mem)
 {
     assert(mem->mbc.type1.mode == 0);
-    mem_map(mem, 4, mem->mbc.type1.ram);
+    change_mapping(mem, 4, mem->mbc.type1.ram);
 }
 
 void mbc1(memory_t *mem, int addr, uint8_t value)
@@ -219,7 +204,7 @@ void mbc1(memory_t *mem, int addr, uint8_t value)
             mem->mbc.type1.upper_rom_bits = 0;
             mem->mbc.type1.mode = value & 1;
 
-            mem_map(mem, 4, mem->mbc.type1.ram);
+            change_mapping(mem, 4, mem->mbc.type1.ram);
         }
     }
     else if (addr >= 0x4000)
@@ -232,7 +217,7 @@ void mbc1(memory_t *mem, int addr, uint8_t value)
         {
             // RAM bank switching
             int bank = value & 0x3;
-            mem_map(mem, 4, mem->mbc.type1.ram + (bank * 0x2000));
+            change_mapping(mem, 4, mem->mbc.type1.ram + (bank * 0x2000));
         }
     }
     else if (addr >= 0x2000)
@@ -241,6 +226,6 @@ void mbc1(memory_t *mem, int addr, uint8_t value)
         int bank = (value & 0x1F);
         bank = MAX(bank, 1) | mem->mbc.type1.upper_rom_bits;
 
-        mem_map_many(mem, 2, 2, mem->rom + (bank * 0x4000));
+        change_mappings(mem, 2, 2, mem->rom + (bank * 0x4000));
     }
 }

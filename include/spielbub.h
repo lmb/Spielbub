@@ -36,7 +36,7 @@ typedef enum emulation_state {
 typedef enum graphics_layer {
     LAYER_BACKGROUND = 1,
     LAYER_WINDOW = 2,
-    LAYER_SPRITES = 4
+    LAYER_SPRITES = 3
 } graphics_layer_t;
 
 typedef enum joypad_key {

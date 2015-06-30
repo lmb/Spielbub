@@ -15,10 +15,8 @@ typedef enum {
     HBLANK = 0x00, VBLANK, OAM, TRANSF, HBLANK_WAIT, VBLANK_WAIT, OAM_WAIT
 } gfx_state_t;
 
-typedef uint16_t pixel_t;
-
-typedef struct palette {
-    pixel_t colors[4];
+typedef struct {
+    uint8_t colors[4];
 } palette_t;
 
 typedef struct gfx {
@@ -31,18 +29,16 @@ typedef struct gfx {
     
     // Current state.
     gfx_state_t state;
-    
+
     window_t window;
 
-    palette_t palette;
-    palette_t debug_palettes[3];
     int debug_flags;
 
     SDL_Surface* sprites_bg;
     SDL_Surface* sprites_fg;
     SDL_Surface* background;
 
-    uint32_t screen_white;
+    SDL_Surface* layers[3];
 } gfx_t;
 
 typedef struct sprite {
@@ -51,7 +47,7 @@ typedef struct sprite {
     bool visible;
     bool in_background;
     bool flip_x, flip_y;
-    const palette_t* palette;
+    palette_t palette;
 
     uint16_t tile_id;
     size_t tile_x, tile_y;
