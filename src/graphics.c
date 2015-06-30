@@ -7,6 +7,7 @@
 
 #define NUM(x) (sizeof x / sizeof x[0])
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 typedef struct dest {
     uint8_t* data;
@@ -48,8 +49,6 @@ SDL_Surface* create_surface() {
         return NULL;
     }
 
-    // assert(SDL_SetSurfaceBlendMode(surface, SDL_BLENDMODE_BLEND) == 0);
-
     assert(surface->format->palette != NULL);
     assert(SDL_SetPaletteColors(surface->format->palette, sdl_palette, 0,
         NUM(sdl_palette)) == 0);
@@ -73,18 +72,13 @@ bool graphics_init(gfx_t* gfx)
         return false;
     }
 
-#define INIT_SURFACE(x) do { \
-        x = create_surface(); \
-        if (x == NULL) { \
-            goto error; \
-        } \
-    } while(0)
+    gfx->background = create_surface();
+    gfx->sprites_bg = create_surface();
+    gfx->sprites_fg = create_surface();
 
-    INIT_SURFACE(gfx->background);
-    INIT_SURFACE(gfx->sprites_bg);
-    INIT_SURFACE(gfx->sprites_fg);
-
-#undef INIT_SURFACE
+    if (!gfx->background || !gfx->sprites_bg || ! gfx->sprites_fg) {
+        goto error;
+    }
 
     gfx->layers[0] = gfx->background;
     gfx->layers[1] = gfx->sprites_bg;
@@ -257,15 +251,10 @@ palette_decode(uint8_t raw_palette)
      */
     palette_t palette;
 
-#define DECODE(dest, n) do { \
-        dest.colors[n] = ((raw_palette & (0x3 << (n*2))) >> (n*2)); \
-    } while(0)
-
-    DECODE(palette, 0);
-    DECODE(palette, 1);
-    DECODE(palette, 2);
-    DECODE(palette, 3);
-#undef DECODE
+    palette.colors[0] = ((raw_palette & (0x3 << (2*0))) >> (2*0));
+    palette.colors[1] = ((raw_palette & (0x3 << (2*1))) >> (2*1));
+    palette.colors[2] = ((raw_palette & (0x3 << (2*2))) >> (2*2));
+    palette.colors[3] = ((raw_palette & (0x3 << (2*3))) >> (2*3));
 
     return palette;
 }
@@ -274,25 +263,28 @@ static void
 sprite_decode(sprite_t *sprite, const memory_oam_t* oam, palette_t high,
     palette_t low)
 {
-#define MAX(a, b) ((a) > (b) ? (a) : (b))
-    sprite->y      = MAX(0, oam->data[0] - SPRITE_HEIGHT);
-    sprite->x      = MAX(0, oam->data[1] - SPRITE_WIDTH);
+    sprite->y      = MAX(0, oam->data[0]  - SPRITE_HEIGHT);
+    sprite->x      = MAX(0, oam->data[1]  - SPRITE_WIDTH);
     sprite->tile_y = MAX(0, SPRITE_HEIGHT - oam->data[0]);
-    sprite->tile_x = MAX(0, SPRITE_WIDTH - oam->data[1]);
+    sprite->tile_x = MAX(0, SPRITE_WIDTH  - oam->data[1]);
 
-    sprite->tile_id = (sprite->tile_y < TILE_HEIGHT) ?
-        (oam->data[2] & 0xFE) : (oam->data[2] | 0x01);
+    if (sprite->tile_y < TILE_HEIGHT) {
+        sprite->tile_id = oam->data[2] & 0xFE;
+    } else {
+        sprite->tile_id = oam->data[2] | 0x01;
+    }
 
-    sprite->visible = sprite->tile_x < SPRITE_WIDTH
-        && sprite->tile_y < SPRITE_HEIGHT;
+    sprite->visible = false;
+    if (sprite->tile_x < SPRITE_WIDTH && sprite->tile_y < SPRITE_HEIGHT) {
+        sprite->visible = true;
+    }
 
     sprite->tile_y %= TILE_HEIGHT;
 
     sprite->in_background = BIT_ISSET(oam->data[2], 7);
-    sprite->flip_y = BIT_ISSET(oam->data[2], 6);
-    sprite->flip_x = BIT_ISSET(oam->data[2], 5);
-    sprite->palette = BIT_ISSET(oam->data[2], 4) ? high : low;
-#undef MAX
+    sprite->flip_y        = BIT_ISSET(oam->data[2], 6);
+    sprite->flip_x        = BIT_ISSET(oam->data[2], 5);
+    sprite->palette       = BIT_ISSET(oam->data[2], 4) ? high : low;
 }
 
 static void
