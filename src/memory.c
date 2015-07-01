@@ -83,7 +83,7 @@ void mem_init(memory_t *mem)
     memcpy(&mem->map[7] + 0x1F00, ioregs_init, 0x4C);
 
     // Disable all interrupts.
-    mem->map[R_IE] = 0;
+    mem->io.IE = 0;
 }
 
 void mem_init_debug(memory_t *mem)

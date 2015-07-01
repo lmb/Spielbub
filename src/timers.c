@@ -19,11 +19,11 @@ void timers_update(context_t *ctx, int cycles)
     if (timers->divider_cycles >= DIVIDER_CYCLES)
     {
         timers->divider_cycles -= DIVIDER_CYCLES;
-        ctx->mem.map[R_DIV] += 1;
+        ctx->mem.io.DIV += 1;
     }
     
     // Timers
-    uint8_t r_tac = ctx->mem.map[R_TAC];
+    uint8_t r_tac = ctx->mem.io.TAC;
     if (r_tac & R_TAC_ENABLED)
     {
         timers->timer_cycles += cycles;
@@ -33,11 +33,11 @@ void timers_update(context_t *ctx, int cycles)
         {
             timers->timer_cycles -= timer_cycles[timer_type];
 
-            ctx->mem.map[R_TIMA] += 1;
+            ctx->mem.io.TIMA += 1;
 
-            if (ctx->mem.map[R_TIMA] == 0)
+            if (ctx->mem.io.TIMA == 0)
             {
-                ctx->mem.map[R_TIMA] = ctx->mem.map[R_TMA];
+                ctx->mem.io.TIMA = ctx->mem.io.TMA;
                 cpu_irq(ctx, I_TIMER);
             }
         }
