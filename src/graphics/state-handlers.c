@@ -34,13 +34,13 @@ void oam(context_t *ctx)
         // LY coincidence interrupt
         // The LCD just finished displaying a
         // line R_LY, which matches R_LYC.
-        BIT_SET(ctx->mem.io.STAT, R_STAT_LY_COINCIDENCE);
-        if (BIT_ISSET(ctx->mem.io.STAT, R_STAT_LYC_ENABLE)) {
+        stat_lyc_set(&ctx->mem);
+        if (stat_lyc_irq_enabled(&ctx->mem)) {
             // TODO: Why are we issuing LCDC here and above?
             cpu_irq(ctx, I_LCDC);
         }
     } else {
-        BIT_RESET(ctx->mem.io.STAT, R_STAT_LY_COINCIDENCE);
+        stat_lyc_clear(&ctx->mem);
     }
 }
 

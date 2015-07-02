@@ -23,12 +23,11 @@ void timers_update(context_t *ctx, int cycles)
     }
     
     // Timers
-    uint8_t r_tac = ctx->mem.io.TAC;
-    if (r_tac & R_TAC_ENABLED)
+    if (tac_enabled(&ctx->mem))
     {
         timers->timer_cycles += cycles;
         
-        int const timer_type = r_tac & R_TAC_TYPE;
+        int timer_type = tac_timer_type(&ctx->mem);
         if (timers->timer_cycles >= timer_cycles[timer_type])
         {
             timers->timer_cycles -= timer_cycles[timer_type];

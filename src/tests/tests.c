@@ -14,6 +14,7 @@
 #include "context.h"
 #include "cpu_ops.h"
 #include "set.h"
+#include "ioregs.h"
 
 // Fixtures
 context_t ctx;
@@ -586,8 +587,8 @@ START_TEST (test_mem_locations)
 
     fail_unless(offsetof(memory_t, gfx) == 0);
     fail_unless(offsetof(memory_gfx_t, tiles) == 0x8000);
-    fail_unless(offsetof(memory_gfx_t, map_low) == 0x9800);
-    fail_unless(offsetof(memory_gfx_t, map_high) == 0x9C00);
+    fail_unless(offsetof(memory_gfx_t, tile_maps[TILE_MAP_LOW]) == 0x9800);
+    fail_unless(offsetof(memory_gfx_t, tile_maps[TILE_MAP_HIGH]) == 0x9C00);
     fail_unless(offsetof(memory_gfx_t, oam) == 0xFE00);
 }
 END_TEST

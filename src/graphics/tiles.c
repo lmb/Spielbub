@@ -6,15 +6,15 @@
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
 void
-map_init(map_t* map, const memory_t* mem, const memory_tile_map_t* tile_map,
+map_init(map_t* map, const memory_t* mem, tile_map_t tile_map,
     size_t x, size_t y)
 {
     x %= MAP_WIDTH;
     y %= MAP_HEIGHT;
 
-    map->signed_ids = !BIT_ISSET(mem->io.LCDC, R_LCDC_TILE_DATA);
+    map->signed_ids = !lcdc_unsigned_tile_ids(mem);
 
-    map->tile_map = tile_map;
+    map->tile_map  = &mem->gfx.tile_maps[tile_map];
     map->tile_data = &mem->gfx.tiles;
 
     map->row    = y / TILE_HEIGHT;

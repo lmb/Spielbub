@@ -22,7 +22,7 @@ typedef struct map {
     size_t tile_x, tile_y;
 } map_t;
 
-void map_init(map_t* map, const memory_t* mem, const memory_tile_map_t* tile_map,
+void map_init(map_t* map, const memory_t* mem, tile_map_t tile_map,
     size_t x, size_t y);
 
 void map_next(map_t* map, source_t* src);

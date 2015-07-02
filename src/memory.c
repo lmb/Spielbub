@@ -9,6 +9,10 @@
 #include "ioregs.h"
 #include "logging.h"
 
+#define R_DIV (0xFF04)
+#define R_LY  (0xFF44)
+#define R_DMA (0xFF46)
+
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
@@ -168,7 +172,7 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
 
         case R_DMA:
             // Do DMA transfer into OAM
-            memcpy(&mem->map[OAM_START], &mem->map[value * 0x100], 0xA0);
+            memcpy(&mem->gfx.oam, &mem->map[value * 0x100], 0xA0);
             return;
     }
 

@@ -72,8 +72,7 @@ typedef struct memory_io {
 typedef struct memory_gfx {
     uint8_t __pad0[0x8000];
     memory_tile_data_t tiles;
-    memory_tile_map_t  map_low; 
-    memory_tile_map_t  map_high;
+    memory_tile_map_t  tile_maps[2];
     uint8_t __pad1[0x5E00];
     memory_oam_t oam[MAX_SPRITES];
 } memory_gfx_t;

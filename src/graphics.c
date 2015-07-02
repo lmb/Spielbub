@@ -135,7 +135,7 @@ void graphics_update(context_t *ctx, int cycles)
     // amount of cycles is reached, state transitions
     // to TRANSF, etc.
 
-    if (!BIT_ISSET(ctx->mem.io.LCDC, R_LCDC_ENABLED))
+    if (!lcdc_display_enabled(&ctx->mem))
     {
         // LCD is disabled.
         ctx->mem.io.LY = 144;
@@ -226,14 +226,13 @@ draw_line(context_t *ctx) {
     }
     
     // Background
-    if (BIT_ISSET(lcdc, R_LCDC_BG_ENABLED))
+    if (lcdc_background_enabled(&ctx->mem))
     {
         palette = palette_decode(ctx->mem.io.BGP);
 
         map_init(
             &src, &ctx->mem,
-            !BIT_ISSET(lcdc, R_LCDC_BG_TILE_MAP) ?
-                &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
+            lcdc_background_tile_map(&ctx->mem),
             ctx->mem.io.SCX, screen_y + ctx->mem.io.SCY
         );
 
@@ -251,15 +250,14 @@ draw_line(context_t *ctx) {
     // TODO: What happens on underflow?
     uint8_t window_x = ctx->mem.io.WX - 7;
     
-    if (BIT_ISSET(lcdc, R_LCDC_WINDOW_ENABLED) && screen_y >= window_y &&
+    if (lcdc_window_enabled(&ctx->mem) && screen_y >= window_y &&
         window_x < SCREEN_WIDTH)
     {
         palette = palette_decode(ctx->mem.io.BGP);
 
         map_init(
             &src, &ctx->mem,
-            !BIT_ISSET(lcdc, R_LCDC_WINDOW_TILE_MAP) ?
-                &ctx->mem.gfx.map_low : &ctx->mem.gfx.map_high,
+            lcdc_window_tile_map(&ctx->mem),
             window_x, screen_y + gfx->window_y
         );
 
@@ -274,9 +272,9 @@ draw_line(context_t *ctx) {
     }
     
     // Sprites
-    if (BIT_ISSET(lcdc, R_LCDC_SPRITES_ENABLED))
+    if (lcdc_sprites_enabled(&ctx->mem))
     {
-        size_t sprite_height = BIT_ISSET(lcdc, R_LCDC_SPRITES_LARGE) ? 16 : 8;
+        size_t sprite_height = lcdc_sprite_height(&ctx->mem);
         palette_t spp_high, spp_low;
 
         spp_high = palette_decode(ctx->mem.io.SPP_HIGH);
