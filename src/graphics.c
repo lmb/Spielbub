@@ -183,8 +183,7 @@ palette_decode(uint8_t raw_palette)
 }
 
 static void
-sprite_decode(sprite_t *sprite, const memory_oam_t* oam, palette_t high,
-    palette_t low)
+sprite_decode(sprite_t *sprite, const memory_oam_t* oam)
 {
     sprite->y      = MAX(0, oam->data[0]  - SPRITE_HEIGHT);
     sprite->x      = MAX(0, oam->data[1]  - SPRITE_WIDTH);
@@ -207,7 +206,7 @@ sprite_decode(sprite_t *sprite, const memory_oam_t* oam, palette_t high,
     sprite->in_background = BIT_ISSET(oam->data[2], 7);
     sprite->flip_y        = BIT_ISSET(oam->data[2], 6);
     sprite->flip_x        = BIT_ISSET(oam->data[2], 5);
-    sprite->palette       = BIT_ISSET(oam->data[2], 4) ? high : low;
+    sprite->high_palette  = BIT_ISSET(oam->data[2], 4);
 }
 
 void
@@ -275,17 +274,13 @@ draw_line(context_t *ctx) {
     if (lcdc_sprites_enabled(&ctx->mem))
     {
         size_t sprite_height = lcdc_sprite_height(&ctx->mem);
-        palette_t spp_high, spp_low;
-
-        spp_high = palette_decode(ctx->mem.io.SPP_HIGH);
-        spp_low = palette_decode(ctx->mem.io.SPP_LOW);
 
         sprite_table_t sprites = { .length = 0 };
         
         for (size_t i = 0; i < MAX_SPRITES; i++)
         {
             sprite_t sprite;
-            sprite_decode(&sprite, &ctx->mem.gfx.oam[i], spp_high, spp_low);
+            sprite_decode(&sprite, &ctx->mem.gfx.oam[i]);
 
             if (!sprite.visible) {
                 continue;
@@ -296,6 +291,10 @@ draw_line(context_t *ctx) {
                 graphics_sprite_table_add(&sprites, &sprite);
             }
         }
+
+        palette_t spp_high, spp_low;
+        spp_high = palette_decode(ctx->mem.io.SPP_HIGH);
+        spp_low  = palette_decode(ctx->mem.io.SPP_LOW);
 
         // <sprites> holds the 10 sprites with highest priority,
         // sorted by ascending x coordinate. Since sprites
@@ -326,7 +325,7 @@ draw_line(context_t *ctx) {
             draw_tile(
                 &dst,
                 &src,
-                sprite->palette
+                sprite->high_palette ? spp_high : spp_low
             );
         }
     }

@@ -47,7 +47,7 @@ typedef struct sprite {
     bool visible;
     bool in_background;
     bool flip_x, flip_y;
-    palette_t palette;
+    bool high_palette;
 
     uint16_t tile_id;
     size_t tile_x, tile_y;
