@@ -13,8 +13,10 @@ Makefile
 *.dylib
 Spielbub
 Spieltest
+tests
 
 obj/
 *.xcodeproj/*
 !*.xcodeproj/project.pbxproj
 !*.xcworkspace/contents.xcworkspacedata
+spielbub.sublime-workspace
