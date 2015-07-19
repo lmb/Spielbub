@@ -3,7 +3,7 @@
 	[
 		{
 			"path": ".",
-			"folder_exclude_patterns": ["obj"],
+			"folder_exclude_patterns": ["obj", "*.xcodeproj", "build"],
 			"file_exclude_patterns": ["*.make","dump","tests",
 				"*.sublime-workspace", "Makefile", "*.gb"]
 		}
