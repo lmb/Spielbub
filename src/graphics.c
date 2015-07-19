@@ -212,7 +212,6 @@ sprite_decode(sprite_t *sprite, const memory_oam_t* oam)
 void
 draw_line(context_t *ctx) {
     gfx_t* gfx = &ctx->gfx;
-    uint8_t lcdc = ctx->mem.io.LCDC;
     uint8_t screen_y = ctx->mem.io.LY;
 
     map_t src;

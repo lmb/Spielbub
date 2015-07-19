@@ -122,7 +122,6 @@ draw_tiles(dest_t* restrict dst, const map_t* restrict map, palette_t palette)
     // dst->remaining is updated by draw_tile
     while (dst->remaining > 0) {
         source_t src;
-        size_t num;
 
         map_next(&my_map, &src);
         draw_tile(dst, &src, palette);

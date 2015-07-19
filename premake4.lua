@@ -1,7 +1,7 @@
 solution "Spielbub"
    configurations { "Debug", "Release" }
    includedirs { "/usr/local/include", "include" }
-   libdirs { "/usr/local/include" }
+   libdirs { "/usr/local/lib" }
 
    flags { "FatalWarnings" }
 
