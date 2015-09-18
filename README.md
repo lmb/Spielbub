@@ -1,6 +1,8 @@
 Spielbub
 ========
 
+![Spielbub](./screenshot.png?raw=true)
+
 Yet another unfinished Gameboy emulator, written for fun and profit in C.
 
 What does it do?
