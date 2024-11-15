@@ -11,7 +11,7 @@ bool window_init(window_t* window, const char name[], int w, int h)
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         w, h,
-        0
+        SDL_WINDOW_RESIZABLE
     );
 
     if (window->window == NULL) {
@@ -24,7 +24,8 @@ bool window_init(window_t* window, const char name[], int w, int h)
         goto error;
     }
 
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+    SDL_RenderSetIntegerScale(window->renderer, SDL_TRUE);
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     SDL_RenderSetLogicalSize(window->renderer, w, h);
 
     window->texture = SDL_CreateTexture(
@@ -44,7 +45,7 @@ bool window_init(window_t* window, const char name[], int w, int h)
     SDL_PixelFormatEnumToMasks(PIXEL_FORMAT, &bpp, &r, &g, &b, &a);
 
     window->surface = SDL_CreateRGBSurface(
-        0, SCREEN_WIDTH, SCREEN_HEIGHT, bpp,
+        0, w, h, bpp,
         r, g, b, a
     );
 
@@ -114,18 +115,10 @@ void window_clear(window_t *window) {
 
 void window_draw(window_t* window)
 {
-    void *pixels;
-    int pitch;
+    SDL_SetRenderDrawColor(window->renderer, 0, 0, 0, 255);
+    SDL_RenderClear(window->renderer);
 
-    assert(SDL_LockTexture(window->texture, NULL, &pixels, &pitch) == 0);
-    assert(SDL_LockSurface(window->surface) == 0);
-
-    memcpy(pixels, window->surface->pixels, window->surface->pitch *
-        window->surface->h);
-
-    SDL_UnlockSurface(window->surface);
-    SDL_UnlockTexture(window->texture);
-
+    SDL_UpdateTexture(window->texture, NULL, window->surface->pixels, window->surface->pitch);
     SDL_RenderCopy(window->renderer, window->texture, NULL, NULL);
     SDL_RenderPresent(window->renderer);
 }
