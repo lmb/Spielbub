@@ -6,7 +6,7 @@ solution "Spielbub"
    flags { "FatalWarnings" }
 
    -- if not os.get() == "windows" then
-      buildoptions { "-ansi", "-std=gnu11", "-pedantic", "-Wextra", }
+      buildoptions { "-ansi", "-std=c2x", "-pedantic", "-Wextra", }
    -- end
 
    configuration "Debug"
