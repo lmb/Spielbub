@@ -19,9 +19,9 @@ static const SDL_Color sdl_palette[] = {
 
 /* BIG MESS, you have been warned */
 
-void draw_line();
+void draw_line(context_t *ctx);
 
-SDL_Surface* create_surface() {
+SDL_Surface* create_surface(void) {
     SDL_Surface *surface = SDL_CreateRGBSurface(
         0, SCREEN_WIDTH, SCREEN_HEIGHT, 8,
         0, 0, 0, 0

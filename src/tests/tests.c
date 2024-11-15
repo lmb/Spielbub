@@ -721,6 +721,6 @@ void cpu_test_store(context_t *ctx, uint8_t opcode, uint8_t value)
     cpu_run(ctx);
 
     fail_unless(*dst == *src && *dst == value,
-        "Opcode 0x%02X: failed with src = %p, dst = %p", opcode, *src, *dst);
+        "Opcode 0x%02X: failed with src = %hhu, dst = %hhu", opcode, *src, *dst);
 }
 

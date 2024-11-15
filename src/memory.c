@@ -17,7 +17,7 @@
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 
 // Type 1
-void mbc1_init();
+void mbc1_init(memory_t *mem);
 void mbc1(memory_t*, int addr, uint8_t value);
 
 // List of supported memory controllers.
