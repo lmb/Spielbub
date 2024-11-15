@@ -91,7 +91,7 @@ int main(int argc, const char* argv[])
     }
 
     debug_init(&dbg);
-    context_pause_exec(ctx);
+    // context_pause_exec(ctx);
     context_run(ctx);
     debug_free(&dbg);
     context_destroy(ctx);
