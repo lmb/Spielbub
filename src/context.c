@@ -100,7 +100,7 @@ bool context_run(context_t* ctx)
     SDL_Event event;
     unsigned int cycles_frame = 0;
 
-    ctx->next_run = SDL_GetTicks() + TICKS_PER_FRAME;
+    ctx->next_run = SDL_GetTicks64() + TICKS_PER_FRAME;
     ctx->running = true;
 
     while (ctx->running)
@@ -168,14 +168,11 @@ bool context_run(context_t* ctx)
             ctx->update_func(ctx, ctx->update_func_context);
         }
 
-        if (SDL_GetTicks() < ctx->next_run) {
-            unsigned int delay_by;
-            
-            delay_by = ctx->next_run - SDL_GetTicks();
-            SDL_Delay(delay_by);
+        uint64_t now = SDL_GetTicks64();
+        if (now < ctx->next_run) {
+            SDL_Delay(ctx->next_run - now);
         }
 
-        // TODO: This does overflow at some point.
         ctx->next_run += TICKS_PER_FRAME;
     }
 

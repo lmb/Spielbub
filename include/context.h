@@ -41,7 +41,7 @@ struct context {
     // Point in time of the next run,
     // in ticks. Used to slow down
     // emulator if needed.
-    uint32_t next_run;
+    uint64_t next_run;
 
     // Joypad
     uint8_t joypad_state;
