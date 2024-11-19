@@ -1,8 +1,43 @@
 #include <string.h>
+#include <SDL2/SDL.h>
+#include <stdbool.h>
 
 #include "memory.h"
 #include "ioregs.h"
 #include "sound.h"
+
+#define SAMPLE_RATE 44100
+#define BUFFER_SIZE 4096
+#define AMPLITUDE 127
+
+bool sound_init(sound_t *snd) {
+    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
+        fprintf(stderr, "SDL init failed: %s\n", SDL_GetError());
+        return false;
+    }
+    
+    SDL_AudioSpec want, have;
+    SDL_memset(&want, 0, sizeof(want));
+    want.freq = SAMPLE_RATE;
+    want.format = AUDIO_U8;
+    want.channels = 1;
+    want.samples = BUFFER_SIZE;
+    want.callback = NULL;
+    
+    snd->device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
+    if (snd->device == 0) {
+        fprintf(stderr, "Failed to open audio device: %s\n", SDL_GetError());
+        SDL_Quit();
+        return false;
+    }
+
+    SDL_PauseAudioDevice(snd->device, 0);
+    return true;
+}
+
+void sound_update(context_t *ctx, unsigned int cycles) {
+    (void)ctx; (void)cycles;
+}
 
 uint8_t sound_read(const memory_t *mem, uint16_t addr)
 {

@@ -18,6 +18,10 @@ bool context_init_minimal(context_t *ctx)
     if (!graphics_init(&ctx->gfx)) {
         return false;
     }
+    
+    if (!sound_init(&ctx->snd)) {
+        return false;
+    }
 
 #if defined(DEBUG)
     ctx->logs = cb_init(LOG_NUM, LOG_LEN);

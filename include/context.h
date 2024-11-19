@@ -10,6 +10,7 @@
 #include "memory.h"
 #include "graphics.h"
 #include "timers.h"
+#include "sound.h"
 
 #include "buffers.h"
 
@@ -37,6 +38,8 @@ struct context {
 
     // Graphics
     gfx_t gfx;
+    
+    sound_t snd;
 
     // Point in time of the next run,
     // in ticks. Used to slow down
