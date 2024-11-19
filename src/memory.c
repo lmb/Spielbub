@@ -7,6 +7,8 @@
 #include "context.h"
 
 #include "ioregs.h"
+#include "sound.h"
+#include "util.h"
 #include "logging.h"
 
 #define R_DIV (0xFF04)
@@ -40,6 +42,13 @@ static const uint8_t ioregs_init[0x4C] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x91, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFC, 0xFF, 0xFF, 0x00, 0x00
 };
+
+// Initialization table for wave ram, located at 0xFF30+ in memory.
+static const uint8_t wave_ram_init[] = {
+    0x84, 0x40, 0x43, 0xAA, 0x2D, 0x78, 0x92, 0x3C, 0x60, 0x59, 0x59, 0xB0, 0x34, 0xB8, 0x2E, 0xDA
+};
+
+_Static_assert(sizeof(wave_ram_init) == sizeof(((memory_sound_t*)0)->wave_table), "Initialization vector must match wave table size");
 
 static bool change_mapping(memory_t* mem, size_t bank, void* src)
 {
@@ -88,6 +97,7 @@ void mem_init(memory_t *mem)
     
     // Initialize IO registers.
     memcpy(&mem->map[7] + 0x1F00, ioregs_init, 0x4C);
+    memcpy(&mem->sound.wave_table, wave_ram_init, sizeof(mem->sound.wave_table));
 
     // Disable all interrupts.
     mem->io.IE = 0;
@@ -138,9 +148,19 @@ bool mem_load_rom(memory_t *mem, const char *filename)
     return true;
 }
 
+uint8_t mem_read(const memory_t *mem, uint16_t addr)
+{
+    switch (addr) {
+    case offsetof(memory_sound_t, regs) ... offsetofend(memory_sound_t, wave_table) - 1:
+        return sound_read(mem, addr);
+    default:
+        return mem->map[addr];
+    }
+}
+
 uint16_t mem_read16(const memory_t *mem, uint16_t addr)
 {
-    return mem->map[addr] | (mem->map[addr+1] << 8);
+    return mem_read(mem, addr) | (mem_read(mem, addr+1) << 8);
 }
 
 void mem_write16(memory_t *mem, uint16_t addr, uint16_t value)
@@ -177,6 +197,12 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
             // Do DMA transfer into OAM
             memcpy(&mem->gfx.oam, &mem->map[value * 0x100], 0xA0);
             return;
+    }
+    
+    if (addr >= offsetof(memory_sound_t, square1) && addr < offsetofend(memory_sound_t, wave_table)) {
+        // Write to the sound hardware.
+        sound_write(mem, addr, value);
+        return;
     }
 
     // Put value into memory

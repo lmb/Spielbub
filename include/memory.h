@@ -4,7 +4,10 @@
 #include <stdint.h>
 
 #include "spielbub.h"
+#include "bitfield.h"
 #include "rom.h"
+#include "sound.h"
+#include "util.h"
 
 #define SPRITE_SIZE (4)
 
@@ -77,11 +80,76 @@ typedef struct memory_gfx {
     memory_oam_t oam[MAX_SPRITES];
 } memory_gfx_t;
 
+typedef struct {
+    uint8_t BITFIELD(duty:2, length_load:6);
+    uint8_t BITFIELD(volume:4, envelope_mode:1, period:3);
+    uint8_t freq_lsb;
+    uint8_t BITFIELD(trigger:1, length_enable:1, :3, freq_msb:3);
+} memory_sound_square_t;
+
+typedef struct memory_sound {
+    uint8_t __pad0[0xff10];
+    
+    union {
+        uint8_t regs[23];
+        struct {
+            uint8_t NR10, NR11, NR12, NR13, NR14;
+            uint8_t NR20, NR21, NR22, NR23, NR24;
+            uint8_t NR30, NR31, NR32, NR33, NR34;
+            uint8_t NR40, NR41, NR42, NR43, NR44;
+            uint8_t NR50, NR51, NR52;
+        };
+        struct {
+            struct {
+                uint8_t BITFIELD(:1, sweep:3, negate:1, shift:3);
+                memory_sound_square_t params;
+            } square1;
+            
+            struct {
+                uint8_t __pad0;
+                memory_sound_square_t params;
+            } square2;
+            
+            struct {
+                uint8_t BITFIELD(dac_on:1, :7);
+                uint8_t length_load;
+                uint8_t BITFIELD(:1, volume_code:2, :5);
+                uint8_t freq_lsb;
+                uint8_t BITFIELD(trigger:1, length_enable:1, :3, freq_msb:3);
+            } wave;
+            
+            struct {
+                uint8_t __pad0;
+                uint8_t BITFIELD(:2, length_load:6);
+                uint8_t BITFIELD(volume:4, envelope_mode:1, period:3);
+                uint8_t BITFIELD(clock_shift:4, lfsr_width:1, divisor_code:3);
+                uint8_t BITFIELD(trigger:1, length_enable:1, :6);
+            } noise;
+            
+            uint8_t BITFIELD(vin_l_enable:1, volume_left:3, vin_r_enable:1, volume_right:3);
+            uint8_t BITFIELD(left_enables:4, right_enables:4);
+            uint8_t BITFIELD(power:1, :3, channel_statuses:4);
+        };
+    };
+    uint8_t unused[0xff2f - 0xff27 + 1];
+    uint8_t wave_table[0xff3f - 0xff30 + 1];
+} memory_sound_t;
+
+_Static_assert(sizeof((memory_sound_t*)0)->regs == 0xff27 - 0xff10, "Raw registers must have the correct size");
+_Static_assert(offsetof(memory_sound_t, wave) == 0xff1a, "Wave registers must be at correct offset");
+_Static_assert(offsetof(memory_sound_t, noise) == 0xff1f, "Noise registers must be at correct offset");
+_Static_assert(offsetof(memory_sound_t, wave_table) == 0xff30, "Wave table must be at correct offset");
+_Static_assert(offsetofend(memory_sound_t, wave_table) == 0xff40, "Wave table must end at correct offset");
+
+_Static_assert(offsetof(memory_sound_t, NR10) == 0xff10, "NR10 must have correct offset");
+_Static_assert(offsetof(memory_sound_t, NR52) == 0xff26, "NR52 must have correct offset");
+
 struct memory {
     union {
         uint8_t map[8 * 0x2000];
         memory_io_t io;
         memory_gfx_t gfx;
+        memory_sound_t sound;
     };
 
     // Current memory controller
@@ -92,6 +160,7 @@ struct memory {
     
     rom_meta meta;
     mbc_t mbc;
+    sound_t sound_state;
 };
 
 void mem_init(memory_t*);
@@ -99,6 +168,7 @@ void mem_init_debug(memory_t *mem);
 void mem_destroy(memory_t*);
 
 bool mem_load_rom(memory_t*, const char *filename);
+uint8_t mem_read(const memory_t *mem, uint16_t addr);
 uint16_t mem_read16(const memory_t *mem, uint16_t addr);
 void mem_write16(memory_t *mem, uint16_t addr, uint16_t value);
 void mem_write(memory_t*, uint16_t addr, uint8_t value);

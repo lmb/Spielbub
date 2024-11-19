@@ -30,7 +30,7 @@ void cpu_init(cpu_t* cpu)
     cpu->IME = true;
 }
 
-static inline uint8_t*
+static uint8_t*
 offset_to_reg(context_t* ctx, size_t offset)
 {
     cpu_t* cpu = &ctx->cpu;
@@ -50,7 +50,7 @@ offset_to_reg(context_t* ctx, size_t offset)
         case 0x5:
             return &cpu->L;
         case 0x6:
-            return &ctx->mem.map[cpu->HL];
+            abort();
         case 0x7:
             return &cpu->A;
     }
@@ -296,7 +296,6 @@ int cpu_run(context_t *ctx)
         case 0x43:
         case 0x44:
         case 0x45:
-        case 0x46:
         case 0x47:
         // LD C, r
         case 0x48:
@@ -305,7 +304,6 @@ int cpu_run(context_t *ctx)
         case 0x4B:
         case 0x4C:
         case 0x4D:
-        case 0x4E:
         case 0x4F:
         // LD D, r
         case 0x50:
@@ -314,7 +312,6 @@ int cpu_run(context_t *ctx)
         case 0x53:
         case 0x54:
         case 0x55:
-        case 0x56:
         case 0x57:
         // LD E, r
         case 0x58:
@@ -323,7 +320,6 @@ int cpu_run(context_t *ctx)
         case 0x5B:
         case 0x5C:
         case 0x5D:
-        case 0x5E:
         case 0x5F:
         // LD H, r
         case 0x60:
@@ -332,7 +328,6 @@ int cpu_run(context_t *ctx)
         case 0x63:
         case 0x64:
         case 0x65:
-        case 0x66:
         case 0x67:
         // LD L, r
         case 0x68:
@@ -341,7 +336,6 @@ int cpu_run(context_t *ctx)
         case 0x6B:
         case 0x6C:
         case 0x6D:
-        case 0x6E:
         case 0x6F:
         
         // LD A, r
@@ -351,12 +345,24 @@ int cpu_run(context_t *ctx)
         case 0x7B:
         case 0x7C:
         case 0x7D:
-        case 0x7E:
         case 0x7F: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
             uint8_t* dest = cpu_get_dest(ctx, opcode);
 
             *dest = *operand;
+            break;
+        }
+        
+        // LD r, (HL)
+        case 0x46:
+        case 0x4E:
+        case 0x56:
+        case 0x5E:
+        case 0x66:
+        case 0x6E:
+        case 0x7E: {
+            uint8_t *dest = cpu_get_dest(ctx, opcode);
+            *dest = mem_read(mem, cpu->HL);
             break;
         }
 
@@ -368,7 +374,6 @@ int cpu_run(context_t *ctx)
         case 0x74:
         case 0x75: {
             uint8_t *operand = cpu_get_operand(ctx, opcode);
-
             mem_write(&ctx->mem, cpu->HL, *operand);
             break;
         }
@@ -383,51 +388,51 @@ int cpu_run(context_t *ctx)
         case 0x3E: {
             uint8_t *dest = cpu_get_dest(ctx, opcode);
 
-            *dest = mem->map[cpu->PC++];
+            *dest = mem_read(&ctx->mem, cpu->PC++);
             break;
         }
 
         // LD (HL), n
-        case 0x36: mem_write(&ctx->mem, cpu->HL, mem->map[cpu->PC++]); break;
+        case 0x36: mem_write(&ctx->mem, cpu->HL, mem_read(&ctx->mem, cpu->PC++)); break;
 
         // LD (HL), A
         case 0x77: mem_write(&ctx->mem, cpu->HL, cpu->A); break;
 
         // LD A, (BC)
         case 0x0A:
-            cpu->A = mem->map[cpu->BC];
+            cpu->A = mem_read(&ctx->mem, cpu->BC);
             break;
 
         // LD A, (DE)
         case 0x1A:
-            cpu->A = mem->map[cpu->DE];
+            cpu->A = mem_read(&ctx->mem, cpu->DE);
             break;
 
         // LD A, (nn)
         case 0xFA: {
-            cpu->A = mem->map[mem_read16(mem, cpu->PC)];
+            cpu->A = mem_read(&ctx->mem, mem_read16(mem, cpu->PC));
             cpu->PC += 2;
             break;
         }
 
         // LDD A, (HL)
         case 0x3A:
-            cpu->A = mem->map[cpu->HL--];
+            cpu->A = mem_read(&ctx->mem, cpu->HL--);
             break;
 
         // LD A, (0xFF00+C)
         case 0xF2:
-            cpu->A = mem->map[0xFF00 + cpu->C];
+            cpu->A = mem_read(&ctx->mem, 0xFF00 + cpu->C);
             break;
 
         // LDI A, (HL)
         case 0x2A:
-            cpu->A = mem->map[cpu->HL++];
+            cpu->A = mem_read(&ctx->mem, cpu->HL++);
             break;
 
         // LDH A, (0xFF00 + n)
         case 0xF0:
-            cpu->A = mem->map[0xFF00 + mem->map[cpu->PC++]];
+            cpu->A = mem_read(&ctx->mem, 0xFF00 + mem_read(&ctx->mem, cpu->PC++));
             break;
 
         // --------------------------------------
@@ -578,11 +583,17 @@ int cpu_run(context_t *ctx)
         case 0x83:
         case 0x84:
         case 0x85:
-        case 0x86:
         case 0x87: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_add(cpu, *operand);
+            break;
+        }
+        
+        // ADD A, (HL)
+        case 0x86: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_add(cpu, operand);
             break;
         }
 
@@ -593,7 +604,6 @@ int cpu_run(context_t *ctx)
         case 0x8B:
         case 0x8C:
         case 0x8D:
-        case 0x8E:
         case 0x8F: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
@@ -601,6 +611,12 @@ int cpu_run(context_t *ctx)
             break;
         }
 
+        // ADC A, (HL)
+        case 0x8E: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_add_carry(cpu, operand);
+            break;
+        }
         // ADD A, n
         case 0xC6: cpu_add(cpu, mem->map[cpu->PC++]); break;
 
@@ -614,13 +630,20 @@ int cpu_run(context_t *ctx)
         case 0x93:
         case 0x94:
         case 0x95:
-        case 0x96:
         case 0x97: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_sub(cpu, *operand);
             break;
         }
+        
+        // SUB A, (HL)
+        case 0x96: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_sub(cpu, operand);
+            break;
+        }
+    
 
         // SBC A, r
         case 0x98:
@@ -629,11 +652,17 @@ int cpu_run(context_t *ctx)
         case 0x9B:
         case 0x9C:
         case 0x9D:
-        case 0x9E:
         case 0x9F: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_sub_carry(cpu, *operand);
+            break;
+        }
+        
+        // SBC A, (HL)
+        case 0x9E: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_sub_carry(cpu, operand);
             break;
         }
 
@@ -650,13 +679,20 @@ int cpu_run(context_t *ctx)
         case 0xA3:
         case 0xA4:
         case 0xA5:
-        case 0xA6:
         case 0xA7: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_and(cpu, *operand);
             break;
         }
+
+        // AND (HL)
+        case 0xA6: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_and(cpu, operand);
+            break;
+        }
+
 
         // AND n
         case 0xE6: cpu_and(cpu, mem->map[cpu->PC++]); break;
@@ -668,11 +704,17 @@ int cpu_run(context_t *ctx)
         case 0xAB:
         case 0xAC:
         case 0xAD:
-        case 0xAE:
         case 0xAF: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_xor(cpu, *operand);
+            break;
+        }
+        
+        // XOR (HL)
+        case 0xAE: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_xor(cpu, operand);
             break;
         }
 
@@ -686,11 +728,17 @@ int cpu_run(context_t *ctx)
         case 0xB3:
         case 0xB4:
         case 0xB5:
-        case 0xB6:
         case 0xB7: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_or(cpu, *operand);
+            break;
+        }
+
+        // OR (HL)
+        case 0xB6: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_or(cpu, operand);
             break;
         }
 
@@ -704,11 +752,17 @@ int cpu_run(context_t *ctx)
         case 0xBB:
         case 0xBC:
         case 0xBD:
-        case 0xBE:
         case 0xBF: {
             uint8_t* operand = cpu_get_operand(ctx, opcode);
 
             cpu_cp(cpu, *operand);
+            break;
+        }
+
+        // CP (HL)
+        case 0xBE: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_cp(cpu, operand);
             break;
         }
 
@@ -722,11 +776,18 @@ int cpu_run(context_t *ctx)
         case 0x1C:
         case 0x24:
         case 0x2C:
-        case 0x34:
         case 0x3C: {
             uint8_t *dest = cpu_get_dest(ctx, opcode);
 
             cpu_inc(cpu, dest);
+            break;
+        }
+
+        // INC (HL)
+        case 0x34: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_inc(cpu, &operand);
+            mem_write(&ctx->mem, cpu->HL, operand);
             break;
         }
 
@@ -737,11 +798,18 @@ int cpu_run(context_t *ctx)
         case 0x1D:
         case 0x25:
         case 0x2D:
-        case 0x35:
         case 0x3D: {
             uint8_t *dest = cpu_get_dest(ctx, opcode);
 
             cpu_dec(cpu, dest);
+            break;
+        }
+        
+        // DEC (HL)
+        case 0x35: {
+            uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+            cpu_dec(cpu, &operand);
+            mem_write(&ctx->mem, cpu->HL, operand);
             break;
         }
 
@@ -836,6 +904,7 @@ int cpu_run(context_t *ctx)
             break;
 
         case 0xCB:
+            // TODO: Should this go via mem_read?
             opcode = mem->map[cpu->PC++];
             switch (opcode)
             {
@@ -846,11 +915,18 @@ int cpu_run(context_t *ctx)
                 case 0x03:
                 case 0x04:
                 case 0x05:
-                case 0x06:
                 case 0x07: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_rotate_l(cpu, operand);
+                    break;
+                }
+
+                // RLC (HL)
+                case 0x06: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_rotate_l(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -861,11 +937,18 @@ int cpu_run(context_t *ctx)
                 case 0x0B:
                 case 0x0C:
                 case 0x0D:
-                case 0x0E:
                 case 0x0F: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_rotate_r(cpu, operand);
+                    break;
+                }
+
+                // RRC (HL)
+                case 0x0E: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_rotate_r(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -876,7 +959,6 @@ int cpu_run(context_t *ctx)
                 case 0x13:
                 case 0x14:
                 case 0x15:
-                case 0x16:
                 case 0x17: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
@@ -884,6 +966,13 @@ int cpu_run(context_t *ctx)
                     break;
                 }
 
+                // RL (HL)
+                case 0x16: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_rotate_l_carry(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
+                    break;
+                }
 
                 // RR r
                 case 0x18:
@@ -892,11 +981,18 @@ int cpu_run(context_t *ctx)
                 case 0x1B:
                 case 0x1C:
                 case 0x1D:
-                case 0x1E:
                 case 0x1F: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_rotate_r_carry(cpu, operand);
+                    break;
+                }
+                
+                // RR (HL)
+                case 0x1E: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_rotate_r_carry(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -907,11 +1003,18 @@ int cpu_run(context_t *ctx)
                 case 0x23:
                 case 0x24:
                 case 0x25:
-                case 0x26:
                 case 0x27: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_shift_l(cpu, operand);
+                    break;
+                }
+                
+                // SLA (HL)
+                case 0x26: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_shift_l(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -922,11 +1025,18 @@ int cpu_run(context_t *ctx)
                 case 0x2B:
                 case 0x2C:
                 case 0x2D:
-                case 0x2E:
                 case 0x2F: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_shift_r_arithm(cpu, operand);
+                    break;
+                }
+
+                // SRA (HL)
+                case 0x2E: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_shift_r_arithm(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -937,11 +1047,18 @@ int cpu_run(context_t *ctx)
                 case 0x33:
                 case 0x34:
                 case 0x35:
-                case 0x36:
                 case 0x37: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_swap(cpu, operand);
+                    break;
+                }
+                
+                // SWAP (HL)
+                case 0x36: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_swap(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -952,11 +1069,18 @@ int cpu_run(context_t *ctx)
                 case 0x3B:
                 case 0x3C:
                 case 0x3D:
-                case 0x3E:
                 case 0x3F: {
                     uint8_t* operand = cpu_get_operand(ctx, opcode);
 
                     cpu_shift_r_logic(cpu, operand);
+                    break;
+                }
+                
+                // SRL (HL)
+                case 0x3E: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    cpu_shift_r_logic(cpu, &operand);
+                    mem_write(&ctx->mem, cpu->HL, operand);
                     break;
                 }
 
@@ -1014,15 +1138,6 @@ int cpu_run(context_t *ctx)
                 case 0x6D:
                 case 0x75:
                 case 0x7D:
-                // BIT n,(HL)
-                case 0x46:
-                case 0x4E:
-                case 0x56:
-                case 0x5E:
-                case 0x66:
-                case 0x6E:
-                case 0x76:
-                case 0x7E:
                 // BIT n,A
                 case 0x47:
                 case 0x4F:
@@ -1036,6 +1151,25 @@ int cpu_run(context_t *ctx)
                     size_t bit = opcode_to_bit(opcode);
 
                     cpu_set_z(cpu, !bit_is_set(*operand, bit));
+                    cpu_set_n(cpu, false);
+                    cpu_set_h(cpu, true);
+
+                    break;
+                }
+                
+                // BIT n,(HL)
+                case 0x46:
+                case 0x4E:
+                case 0x56:
+                case 0x5E:
+                case 0x66:
+                case 0x6E:
+                case 0x76:
+                case 0x7E: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    cpu_set_z(cpu, !bit_is_set(operand, bit));
                     cpu_set_n(cpu, false);
                     cpu_set_h(cpu, true);
 
@@ -1096,15 +1230,6 @@ int cpu_run(context_t *ctx)
                 case 0xAD:
                 case 0xB5:
                 case 0xBD:
-                // RES n,(HL)
-                case 0x86:
-                case 0x8E:
-                case 0x96:
-                case 0x9E:
-                case 0xA6:
-                case 0xAE:
-                case 0xB6:
-                case 0xBE:
                 // RES n,A
                 case 0x87:
                 case 0x8F:
@@ -1118,6 +1243,22 @@ int cpu_run(context_t *ctx)
                     size_t bit = opcode_to_bit(opcode);
 
                     *operand = bit_unset(*operand, bit);
+                    break;
+                }
+
+                // RES n,(HL)
+                case 0x86:
+                case 0x8E:
+                case 0x96:
+                case 0x9E:
+                case 0xA6:
+                case 0xAE:
+                case 0xB6:
+                case 0xBE: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    mem_write(&ctx->mem, cpu->HL, bit_unset(operand, bit));
                     break;
                 }
 
@@ -1175,15 +1316,6 @@ int cpu_run(context_t *ctx)
                 case 0xED:
                 case 0xF5:
                 case 0xFD:
-                // SET n,(HL)
-                case 0xC6:
-                case 0xCE:
-                case 0xD6:
-                case 0xDE:
-                case 0xE6:
-                case 0xEE:
-                case 0xF6:
-                case 0xFE:
                 // SET n,A
                 case 0xC7:
                 case 0xCF:
@@ -1198,6 +1330,22 @@ int cpu_run(context_t *ctx)
                     size_t bit = opcode_to_bit(opcode);
 
                     *operand = bit_set(*operand, bit);
+                    break;
+                }
+                
+                // SET n,(HL)
+                case 0xC6:
+                case 0xCE:
+                case 0xD6:
+                case 0xDE:
+                case 0xE6:
+                case 0xEE:
+                case 0xF6:
+                case 0xFE: {
+                    uint8_t operand = mem_read(&ctx->mem, cpu->HL);
+                    size_t bit = opcode_to_bit(opcode);
+
+                    mem_write(&ctx->mem, cpu->HL, bit_set(operand, bit));
                     break;
                 }
 

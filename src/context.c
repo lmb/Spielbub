@@ -236,8 +236,11 @@ uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
     uint16_t addr, uint16_t len)
 {
     len = 0xFFFF - len < addr ? 0xFFFF - addr : len;
+    
+    for (int i = 0; i < len; i++) {
+        buffer[i] = mem_read(&ctx->mem, addr+i);
+    }
 
-    memcpy(buffer, &ctx->mem.map[addr], len);
     return len;
 }
 
