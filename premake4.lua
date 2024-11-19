@@ -45,3 +45,9 @@ solution "Spielbub"
       kind "StaticLib"
       language "C"
       files { "src/*.h", "src/*.c", "src/graphics/*.c" }
+      
+   project "sdltest"
+      kind "ConsoleApp"
+      language "C"
+      files "sdl.c"
+      links { "sdl2" }
