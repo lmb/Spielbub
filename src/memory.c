@@ -18,6 +18,7 @@
 
 // Type 1
 void mbc1_init(memory_t *mem);
+void mbc1_init_battery(memory_t *mem);
 void mbc1(memory_t*, int addr, uint8_t value);
 
 // List of supported memory controllers.
@@ -26,7 +27,9 @@ static const struct {
     mem_ctrl_f handler;
 } memory_controllers[] = {
     {0, 0},             // No memory controller
-    {mbc1_init, &mbc1}  // Memory Bank Controller 1
+    {mbc1_init, &mbc1}, // Memory Bank Controller 1
+    {mbc1_init, &mbc1}, // Memory Bank Controller 1 (RAM)
+    {mbc1_init_battery, &mbc1}, // Memory Bank Controller 1 (Battery-backed RAM)
 };
 
 // Initialization table for the IO registers, located at 0xFF00+ in memory.
@@ -119,7 +122,7 @@ bool mem_load_rom(memory_t *mem, const char *filename)
         return false;
     }
 
-    assert(mem->meta.cart_type < 0x02);
+    assert(mem->meta.cart_type < sizeof(memory_controllers) / sizeof(memory_controllers[0]));
 
     if (memory_controllers[mem->meta.cart_type].init != NULL) {
         memory_controllers[mem->meta.cart_type].init(mem);
@@ -193,6 +196,12 @@ void mbc1_init(memory_t *mem)
 {
     assert(mem->mbc.type1.mode == 0);
     change_mapping(mem, 4, mem->mbc.type1.ram);
+}
+
+void mbc1_init_battery(memory_t *mem)
+{
+    // TODO: What does the battery backing imply?
+    mbc1_init(mem);
 }
 
 void mbc1(memory_t *mem, int addr, uint8_t value)
