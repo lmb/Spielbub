@@ -148,29 +148,31 @@ bool mem_load_rom(memory_t *mem, const char *filename)
     return true;
 }
 
-uint8_t mem_read(const memory_t *mem, uint16_t addr)
+uint8_t mem_read(const context_t *ctx, uint16_t addr)
 {
     switch (addr) {
     case offsetof(memory_sound_t, regs) ... offsetofend(memory_sound_t, wave_table) - 1:
-        return sound_read(mem, addr);
+        return sound_read(ctx, addr);
     default:
-        return mem->map[addr];
+        return ctx->mem.map[addr];
     }
 }
 
-uint16_t mem_read16(const memory_t *mem, uint16_t addr)
+uint16_t mem_read16(const context_t *ctx, uint16_t addr)
 {
-    return mem_read(mem, addr) | (mem_read(mem, addr+1) << 8);
+    return mem_read(ctx, addr) | (mem_read(ctx, addr+1) << 8);
 }
 
-void mem_write16(memory_t *mem, uint16_t addr, uint16_t value)
+void mem_write16(context_t *ctx, uint16_t addr, uint16_t value)
 {
-    mem_write(mem, addr, value & 0xff);
-    mem_write(mem, addr+1, value >> 8);
+    mem_write(ctx, addr, value & 0xff);
+    mem_write(ctx, addr+1, value >> 8);
 }
 
-void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
+void mem_write(context_t *ctx, const uint16_t addr, uint8_t value)
 {
+    memory_t *mem = &ctx->mem;
+    
     if (addr < 0x8000) {
         // This is ROM, forward to MBC
         if (mem->controller != NULL)
@@ -199,9 +201,9 @@ void mem_write(memory_t *mem, const uint16_t addr, uint8_t value)
             return;
     }
     
-    if (addr >= offsetof(memory_sound_t, square1) && addr < offsetofend(memory_sound_t, wave_table)) {
+    if (addr >= offsetof(memory_sound_t, regs) && addr < offsetofend(memory_sound_t, regs)) {
         // Write to the sound hardware.
-        sound_write(mem, addr, value);
+        sound_write(ctx, addr, value);
         return;
     }
 

@@ -2,64 +2,65 @@
 #include <math.h>
 #include <stdbool.h>
 
+#include "context.h"
+#include "timers.h"
+#include "sound.h"
+
 #define SAMPLE_RATE 44100
+#define CYCLES_PER_SAMPLE (CLOCKSPEED * 1.0 / SAMPLE_RATE)
 #define BUFFER_SIZE 4096
 #define AMPLITUDE 127
 #define FREQUENCY 440.0
-#define MAX_QUEUED_SIZE (BUFFER_SIZE * 4) // Limit queue size to prevent excessive buffering
 
 int main() {
     SDL_SetHint(SDL_HINT_NO_SIGNAL_HANDLERS, "1");
-     
-    if (SDL_Init(SDL_INIT_AUDIO) < 0) {
-        fprintf(stderr, "SDL init failed: %s\n", SDL_GetError());
+    
+    const int waveform_cycles = 8; // one full waveform at max freq.
+
+    context_t ctx;
+    if (!context_init_minimal(&ctx)) {
+        printf("unhappy\n");
         return 1;
     }
     
-    SDL_AudioSpec want, have;
-    SDL_memset(&want, 0, sizeof(want));
-    want.freq = SAMPLE_RATE;
-    want.format = AUDIO_U8;
-    want.channels = 1;
-    want.samples = BUFFER_SIZE;
-    want.callback = NULL;
-    
-    SDL_AudioDeviceID device = SDL_OpenAudioDevice(NULL, 0, &want, &have, 0);
-    if (device == 0) {
-        fprintf(stderr, "Failed to open audio device: %s\n", SDL_GetError());
-        SDL_Quit();
+    if (!sound_init(&ctx.snd)) {
+        printf("Sound failed\n");
         return 1;
     }
     
-    Uint8* buffer = (Uint8*)malloc(BUFFER_SIZE * sizeof(Uint8));
-    double phase = 0.0;
-    bool running = true;
+    // This is is what a ROM would do via CPU insns.
+    ctx.mem.sound.square1.period_lsb = 0x40;
+    ctx.mem.sound.square1.period_msb = 0x07;
+    ctx.mem.sound.square1.duty = 0b10;
+
+    // This is what the APU would do given a trigger.
+    ctx.snd.square1.divider = 0x740;
+    ctx.snd.square1.volume = 0b1111;
     
-    SDL_PauseAudioDevice(device, 0);
-    printf("Playing continuous tone...\n");
+    printf("Playing something\n");
     
-    while (running) {
-        // Only queue more audio if we're below our maximum queue size
-        if (SDL_GetQueuedAudioSize(device) < MAX_QUEUED_SIZE) {
-            for (int i = 0; i < BUFFER_SIZE; i++) {
-                buffer[i] = (Uint8)(AMPLITUDE * sin(phase) + 128);
-                phase += 2.0 * M_PI * FREQUENCY / SAMPLE_RATE;
-                if (phase > 2.0 * M_PI) {
-                    phase -= 2.0 * M_PI;
-                }
-            }
-            
-            if (SDL_QueueAudio(device, buffer, BUFFER_SIZE * sizeof(Uint8)) != 0) {
-                fprintf(stderr, "Error queueing audio: %s\n", SDL_GetError());
-                break;
-            }
+    double cycles = CYCLES_PER_SAMPLE;
+    uint8_t buffer[BUFFER_SIZE];
+    while (true) {
+        if (SDL_GetQueuedAudioSize(ctx.snd.device) >= SAMPLE_RATE/4) {
+            SDL_Delay(5);
+            continue;
         }
         
-        SDL_Delay(5); // Short delay to prevent CPU overuse
+        for (unsigned int i = 0; i < sizeof(buffer); i++) {
+            sound_update(&ctx, cycles - fmod(cycles, 4));
+            buffer[i] = ctx.snd.square1.value;
+
+            cycles = CYCLES_PER_SAMPLE + fmod(cycles, 4);
+        }
+
+        if (SDL_QueueAudio(ctx.snd.device, buffer, sizeof(buffer)) != 0) {
+            fprintf(stderr, "Error queueing audio: %s\n", SDL_GetError());
+            break;
+        }
     }
     
-    free(buffer);
-    SDL_CloseAudioDevice(device);
+    SDL_CloseAudioDevice(ctx.snd.device);
     SDL_Quit();
     return 0;
 }

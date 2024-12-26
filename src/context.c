@@ -19,10 +19,6 @@ bool context_init_minimal(context_t *ctx)
         return false;
     }
     
-    if (!sound_init(&ctx->snd)) {
-        return false;
-    }
-
 #if defined(DEBUG)
     ctx->logs = cb_init(LOG_NUM, LOG_LEN);
     if (ctx->logs == NULL) {
@@ -56,6 +52,10 @@ context_t* context_create(update_func_t func, void* context)
     }
 
     if (!context_init_minimal(ctx)) {
+        goto error;
+    }
+
+    if (!sound_init(&ctx->snd)) {
         goto error;
     }
 
@@ -130,6 +130,7 @@ bool context_run(context_t* ctx)
             // Update graphics, timers, etc.
             timers_update(ctx, cycles);
             graphics_update(ctx, cycles);
+            sound_update(ctx, cycles);
             joypad_update(ctx);
 
 #if defined(DEBUG)
@@ -242,7 +243,7 @@ uint16_t context_get_memory(const context_t* ctx, uint8_t buffer[],
     len = 0xFFFF - len < addr ? 0xFFFF - addr : len;
     
     for (int i = 0; i < len; i++) {
-        buffer[i] = mem_read(&ctx->mem, addr+i);
+        buffer[i] = mem_read(ctx, addr+i);
     }
 
     return len;

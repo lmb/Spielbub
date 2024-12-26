@@ -16,6 +16,8 @@
 #include "set.h"
 #include "ioregs.h"
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+
 // Fixtures
 context_t ctx;
 
@@ -629,6 +631,69 @@ START_TEST (test_set)
 }
 END_TEST
 
+static const int waveform_cycles = 8; // one full waveform at max freq.
+
+START_TEST(test_sound_square_freq)
+{
+    // 131072 hz signal at 50% duty cycle.
+    static const uint8_t _131072hz_50duty[] = {
+        0x00, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
+    };
+    
+    // 65536 Hz signal at 75% duty cycle.
+    static const uint8_t _65536hz_75duty[] = {
+        0xff, 0xff,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0xff, 0xff,
+    };
+    
+    uint8_t buffer[MAX(sizeof(_131072hz_50duty), sizeof(_65536hz_75duty))*2] = {};
+    
+    sound_square_params_t params = {
+        .period_lsb = 0xff,
+        .period_msb = 0x07,
+        .duty = 0b10,
+    };
+
+    sound_square_state_t ch = {
+        .divider = 0x7ff,
+        .volume = 0b1111,
+    };
+
+    for (size_t i = 0; i < sizeof(_131072hz_50duty)*2; i++) {
+        sound_update_square(&ch, &params);
+        buffer[i] = ch.value;
+    }
+
+    ck_assert_mem_eq(buffer, _131072hz_50duty, sizeof(_131072hz_50duty));
+    ck_assert_mem_eq(&buffer[sizeof(_131072hz_50duty)], _131072hz_50duty, sizeof(_131072hz_50duty));
+
+    params = (sound_square_params_t){
+        .period_lsb = 0xfe,
+        .period_msb = 0x07,
+        .duty = 0b11,
+    };
+    
+    ch = (sound_square_state_t){
+        .divider = 0x7ff,
+        .volume = 0b1111,
+    };
+
+    memset(buffer, 0, sizeof(buffer));
+    for (size_t i = 0; i < sizeof(_65536hz_75duty)*2; i++) {
+        sound_update_square(&ch, &params);
+        buffer[i] = ch.value;
+    }
+
+    ck_assert_mem_eq(buffer, _65536hz_75duty, sizeof(_65536hz_75duty));
+    ck_assert_mem_eq(&buffer[sizeof(_65536hz_75duty)], _65536hz_75duty, sizeof(_65536hz_75duty));
+}
+END_TEST
 /* -------------------------------------------------------------------------- */
 
 Suite * spielbub_suite(void)
@@ -672,6 +737,10 @@ Suite * spielbub_suite(void)
     tcase_add_test(tc_pl, test_set);
     suite_add_tcase(s, tc_pl);
     
+    TCase *tc_sound = tcase_create("Sound");
+    tcase_add_test(tc_sound, test_sound_square_freq);
+    suite_add_tcase(s, tc_sound);
+    
     return s;
 }
 
@@ -682,7 +751,7 @@ int main(void)
     SRunner *sr = srunner_create(s);
     srunner_set_fork_status(sr, CK_NOFORK);
     
-    srunner_run_all(sr, CK_VERBOSE);
+    srunner_run_all(sr, CK_NORMAL);
     number_failed = srunner_ntests_failed(sr);
     srunner_free(sr);
     

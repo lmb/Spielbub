@@ -10,12 +10,12 @@
 void cpu_push(context_t *ctx, uint16_t value)
 {
     ctx->cpu.SP -= 2;
-    mem_write16(&ctx->mem, ctx->cpu.SP, value);
+    mem_write16(ctx, ctx->cpu.SP, value);
 }
 
 uint16_t cpu_pop(context_t *ctx)
 {
-    const uint16_t value = mem_read16(&ctx->mem, ctx->cpu.SP);
+    const uint16_t value = mem_read16(ctx, ctx->cpu.SP);
 
     ctx->cpu.SP += 2;
     return value;
@@ -261,7 +261,7 @@ void cpu_daa(cpu_t* cpu)
 
 void cpu_jump(context_t *ctx)
 {
-    ctx->cpu.PC = mem_read16(&ctx->mem, ctx->cpu.PC);
+    ctx->cpu.PC = mem_read16(ctx, ctx->cpu.PC);
 }
 
 void cpu_jump_rel(context_t *ctx)
@@ -272,7 +272,7 @@ void cpu_jump_rel(context_t *ctx)
 void cpu_call(context_t *ctx)
 {
     cpu_push(ctx, ctx->cpu.PC + 2);
-    ctx->cpu.PC = mem_read16(&ctx->mem, ctx->cpu.PC);
+    ctx->cpu.PC = mem_read16(ctx, ctx->cpu.PC);
 }
 
 void cpu_restart(context_t *ctx, uint8_t n)

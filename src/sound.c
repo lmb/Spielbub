@@ -1,7 +1,9 @@
 #include <string.h>
 #include <SDL2/SDL.h>
 #include <stdbool.h>
+#include <assert.h>
 
+#include "context.h"
 #include "memory.h"
 #include "ioregs.h"
 #include "sound.h"
@@ -35,11 +37,41 @@ bool sound_init(sound_t *snd) {
     return true;
 }
 
-void sound_update(context_t *ctx, unsigned int cycles) {
-    (void)ctx; (void)cycles;
+static const uint8_t duty_table[][8] = {
+    {0, 0, 0, 0, 0, 0, 0, 1}, // 12.5%
+    {0, 1, 1, 1, 1, 1, 1, 0}, // 25%
+    {0, 1, 1, 1, 1, 0, 0, 0}, // 50%
+    {1, 0, 0, 0, 0, 0, 0, 1}, // 75%
+};
+
+void sound_update_square(sound_square_state_t *ch, const sound_square_params_t *params) {
+    if (ch->divider < 0x7ff) {
+        ch->divider++;
+        return;
+    }
+
+    // Re-arm the timer.
+    ch->divider = (params->period_msb << 8) | params->period_lsb;
+
+    // TODO: Length, envelope.
+    ch->value = duty_table[params->duty][ch->wave_step] * ch->volume;
+
+    // Convert to 8 bit sample. 0xff / 0xf = 0x11
+    ch->value *= 0x11;
+
+    // Advance duty cycle. TODO: Should this increment after instead?
+    ch->wave_step = (ch->wave_step + 1) % sizeof(duty_table[0]);
 }
 
-uint8_t sound_read(const memory_t *mem, uint16_t addr)
+void sound_update(context_t *ctx, unsigned int cycles) {
+    assert(cycles % 4 == 0);
+
+    for (; cycles > 0; cycles -= 4) {
+        sound_update_square(&ctx->snd.square1, &ctx->mem.sound.square1);
+    }
+}
+
+uint8_t sound_read(const context_t *ctx, uint16_t addr)
 {
     // https://gbdev.gg8.se/wiki/articles/Gameboy_sound_hardware#Register_Reading
     const uint8_t mask[] = {
@@ -55,17 +87,17 @@ uint8_t sound_read(const memory_t *mem, uint16_t addr)
     switch (addr) {
     case range_of(memory_sound_t, regs): {
         int index = addr - offsetof(memory_sound_t, NR10);
-        return mem->map[addr] | mask[index];
+        return ctx->mem.map[addr] | mask[index];
     }
     case range_of(memory_sound_t, unused):
         return 0xff;
     default:
         // TODO: Not sure this is correct.
-        return mem->map[addr];
+        return ctx->mem.map[addr];
     }
 }
 
-void sound_write(memory_t *mem, uint16_t addr, uint8_t value)
+void sound_write(context_t *ctx, uint16_t addr, uint8_t value)
 {
     switch (addr) {
     case offsetof(memory_sound_t, NR52):
@@ -73,9 +105,9 @@ void sound_write(memory_t *mem, uint16_t addr, uint8_t value)
             // Reset frame sequencer
             // Reset square duty units
             // Reset wave channel buffer
-            mem->sound.power = 1;
+            ctx->mem.sound.power = 1;
         } else {
-            memset(mem->sound.regs, 0, sizeof(mem->sound.regs));
+            memset(ctx->mem.sound.regs, 0, sizeof(ctx->mem.sound.regs));
         }
         break;
         
@@ -83,13 +115,13 @@ void sound_write(memory_t *mem, uint16_t addr, uint8_t value)
         return;
         
     default:
-        if (!mem->sound.power) {
+        if (!ctx->mem.sound.power) {
             // Any writes are ignored when powered off.
             // TODO: Allow writing length counters.
             return;
         }
         
         // TODO: Wildly inaccurate.
-        mem->map[addr] = value;
+        ctx->mem.map[addr] = value;
     }
 }

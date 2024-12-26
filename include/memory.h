@@ -11,6 +11,7 @@
 
 #define SPRITE_SIZE (4)
 
+typedef struct context context_t;
 typedef struct memory memory_t;
 
 typedef struct mbc {
@@ -80,13 +81,6 @@ typedef struct memory_gfx {
     memory_oam_t oam[MAX_SPRITES];
 } memory_gfx_t;
 
-typedef struct {
-    uint8_t BITFIELD(duty:2, length_load:6);
-    uint8_t BITFIELD(volume:4, envelope_mode:1, period:3);
-    uint8_t freq_lsb;
-    uint8_t BITFIELD(trigger:1, length_enable:1, :3, freq_msb:3);
-} memory_sound_square_t;
-
 typedef struct memory_sound {
     uint8_t __pad0[0xff10];
     
@@ -100,22 +94,15 @@ typedef struct memory_sound {
             uint8_t NR50, NR51, NR52;
         };
         struct {
-            struct {
-                uint8_t BITFIELD(:1, sweep:3, negate:1, shift:3);
-                memory_sound_square_t params;
-            } square1;
-            
-            struct {
-                uint8_t __pad0;
-                memory_sound_square_t params;
-            } square2;
-            
+            sound_square_params_t square1;
+            sound_square_params_t square2;
+
             struct {
                 uint8_t BITFIELD(dac_on:1, :7);
                 uint8_t length_load;
                 uint8_t BITFIELD(:1, volume_code:2, :5);
-                uint8_t freq_lsb;
-                uint8_t BITFIELD(trigger:1, length_enable:1, :3, freq_msb:3);
+                uint8_t period_lsb;
+                uint8_t BITFIELD(trigger:1, length_enable:1, :3, period_msb:3);
             } wave;
             
             struct {
@@ -160,7 +147,6 @@ struct memory {
     
     rom_meta meta;
     mbc_t mbc;
-    sound_t sound_state;
 };
 
 void mem_init(memory_t*);
@@ -168,9 +154,9 @@ void mem_init_debug(memory_t *mem);
 void mem_destroy(memory_t*);
 
 bool mem_load_rom(memory_t*, const char *filename);
-uint8_t mem_read(const memory_t *mem, uint16_t addr);
-uint16_t mem_read16(const memory_t *mem, uint16_t addr);
-void mem_write16(memory_t *mem, uint16_t addr, uint16_t value);
-void mem_write(memory_t*, uint16_t addr, uint8_t value);
+uint8_t mem_read(const context_t *ctx, uint16_t addr);
+uint16_t mem_read16(const context_t *ctx, uint16_t addr);
+void mem_write16(context_t *ctx, uint16_t addr, uint16_t value);
+void mem_write(context_t *ctx, uint16_t addr, uint8_t value);
 
 #endif//__MEMORY_H__

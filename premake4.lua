@@ -48,6 +48,7 @@ solution "Spielbub"
       
    project "sdltest"
       kind "ConsoleApp"
+      links { "Spiellib" }
       language "C"
       files "sdl.c"
       links { "sdl2" }
