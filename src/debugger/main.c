@@ -42,7 +42,7 @@ void update(context_t* ctx, debug_t *dbg)
             return;
         }
 
-        fgets(dbg->commandline + len, rem, stdin);
+        (void)fgets(dbg->commandline + len, rem, stdin);
 
         char* end = strpbrk(dbg->commandline, "\r\n");
 
