@@ -5,9 +5,10 @@ solution "Spielbub"
 
    flags { "FatalWarnings" }
 
-   -- if not os.get() == "windows" then
-      buildoptions { "-ansi", "-std=c2x", "-Wextra", "-Wno-gnu-case-range" }
-   -- end
+   buildoptions { "-ansi", "-std=c2x", "-Wextra", "-Wno-gnu-case-range" }
+   if os.get() == "linux" then
+      buildoptions { "-D_XOPEN_SOURCE=600"}
+   end
 
    configuration "Debug"
       defines { "DEBUG" }
@@ -23,11 +24,12 @@ solution "Spielbub"
       files { "src/debugger/*.c" }
       links { "Spiellib" }
 
-      links { "sdl2" }
-
       if os.get() == "macosx" then
          links { "Cocoa.framework" }
+      elseif os.get() == "linux" then
+         links {"m"}         
       end
+      links { "SDL2" }
 
    project "tests"
       kind "ConsoleApp"
@@ -35,11 +37,13 @@ solution "Spielbub"
       files { "src/tests/*.c" }
       links { "Spiellib", "check" }
 
-      links { "sdl2" }
-
       if os.get() == "macosx" then
          links { "Cocoa.framework" }
+
+      elseif os.get() == "linux" then
+         links { "m" }         
       end
+      links { "SDL2" }
 
    project "Spiellib"
       kind "StaticLib"
@@ -51,4 +55,7 @@ solution "Spielbub"
       links { "Spiellib" }
       language "C"
       files "sdl.c"
-      links { "sdl2" }
+      if os.get() == "linux" then
+         links { "m" }         
+      end
+      links { "SDL2" }

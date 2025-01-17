@@ -27,8 +27,10 @@ Compilation has only been tested on OS X, your mileage may vary on other OS. Uni
 
 ### Building
 
+Install `nix`
+
 ```shell
-$ nix-shell # tested on macOS
+$ nix-shell # tested on macOS and linux
 [nix-shell]$ premake4 gmake --cc="clang"
 [nix-shell]$ make -j
 [nix-shell]$ ./Spielbub <rom.bin>
